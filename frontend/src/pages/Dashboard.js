@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
+const API = "https://hospitality-app-39zz.onrender.com";
+
 function PageHeader({ title, subtitle }) {
   return (
     <div style={{ padding: "36px 40px 24px", borderBottom: "1px solid #D0D7DE", background: "#fff" }}>
@@ -48,8 +50,8 @@ export default function Dashboard() {
     async function load() {
       try {
         const [s, g] = await Promise.all([
-          axios.get("/api/db/stats"),
-          axios.get("/api/guest/all"),
+          axios.get(`${API}/api/db/stats`),
+          axios.get(`${API}/api/guest/all`),
         ]);
         setStats(s.data);
         setGuests(g.data);
@@ -94,8 +96,6 @@ export default function Dashboard() {
     <div>
       <PageHeader title="Analytics Dashboard" subtitle="Real-time overview of all guest intelligence data." />
       <div style={{ padding: "32px 40px" }}>
-
-        {/* Stat Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
           <StatCard icon="👥" label="Total Guests" value={stats?.guests || 0} color="#0D1117" bg="#F6F8FA" />
           <StatCard icon="🔗" label="Social Profiles" value={stats?.socialProfiles || 0} color="#2563EB" bg="#EFF6FF" />
@@ -103,10 +103,8 @@ export default function Dashboard() {
           <StatCard icon="📋" label="Preferences Saved" value={stats?.preferences || 0} color="#D97706" bg="#FEF3C7" />
         </div>
 
-        {/* Charts Row */}
         {pieData.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 28 }}>
-            {/* Bar Chart */}
             <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "24px" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 20 }}>
                 Guest Persona Distribution
@@ -115,10 +113,7 @@ export default function Dashboard() {
                 <BarChart data={barData} barSize={28}>
                   <XAxis dataKey="persona" tick={{ fontSize: 10, fill: "#8B949E" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: "#8B949E" }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "1px solid #D0D7DE", fontSize: 12 }}
-                    cursor={{ fill: "#F6F8FA" }}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #D0D7DE", fontSize: 12 }} cursor={{ fill: "#F6F8FA" }} />
                   <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                     {barData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
@@ -126,7 +121,6 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
 
-            {/* Pie Chart */}
             <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "24px" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 20 }}>
                 Persona Share
@@ -144,7 +138,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Guest Table */}
         <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", overflow: "hidden" }}>
           <div style={{ padding: "16px 24px", borderBottom: "1px solid #D0D7DE", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: "#0D1117", textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -191,9 +184,7 @@ export default function Dashboard() {
                           {g.name}
                         </div>
                       </td>
-                      <td style={{ padding: "12px 16px", color: "#57606A" }}>
-                        {g.email_local}@{g.email_domain}
-                      </td>
+                      <td style={{ padding: "12px 16px", color: "#57606A" }}>{g.email_local}@{g.email_domain}</td>
                       <td style={{ padding: "12px 16px" }}>
                         {g.persona ? (
                           <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#0D1117" }}>
@@ -202,10 +193,7 @@ export default function Dashboard() {
                         ) : <span style={{ color: "#8B949E" }}>—</span>}
                       </td>
                       <td style={{ padding: "12px 16px" }}>
-                        <span style={{
-                          padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                          background: "#EFF6FF", color: "#2563EB",
-                        }}>{g.profile_count || 0}</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#EFF6FF", color: "#2563EB" }}>{g.profile_count || 0}</span>
                       </td>
                       <td style={{ padding: "12px 16px" }}>
                         {g.data_quality ? (
@@ -217,9 +205,7 @@ export default function Dashboard() {
                         ) : <span style={{ color: "#8B949E" }}>—</span>}
                       </td>
                       <td style={{ padding: "12px 16px", color: "#57606A", fontSize: 12, maxWidth: 200 }}>
-                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {g.room_recommendation || "—"}
-                        </div>
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.room_recommendation || "—"}</div>
                       </td>
                       <td style={{ padding: "12px 16px", color: "#8B949E", fontSize: 12, whiteSpace: "nowrap" }}>
                         {g.created_at ? new Date(g.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}

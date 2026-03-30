@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
 
+const API = "https://hospitality-app-39zz.onrender.com";
+
 const PERSONA_COLORS = {
   "Luxury Traveler": { bg: "#FEF3C7", accent: "#D97706", icon: "💎" },
   "Business Traveler": { bg: "#EFF6FF", accent: "#2563EB", icon: "💼" },
@@ -83,10 +85,10 @@ export default function GuestLookup() {
     }, 2500);
     setStep(STEPS[0]);
     try {
-      const res = await axios.post("/api/guest/lookup", form);
+      const res = await axios.post(`${API}/api/guest/lookup`, form);
       setResult(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || "Something went wrong");
+      setError(err.response?.data?.error || "Something went wrong. Please try again.");
     } finally {
       clearInterval(interval);
       setLoading(false); setStep("");
@@ -103,7 +105,6 @@ export default function GuestLookup() {
         subtitle="Enter a guest's name and email to discover their online presence, analyse behaviour, and generate a guest persona."
       />
       <div style={{ padding: "32px 40px" }}>
-        {/* Search Form */}
         <div style={{
           background: "#fff", borderRadius: 16, border: "1px solid #D0D7DE",
           padding: "28px 32px", marginBottom: 28,
@@ -159,7 +160,6 @@ export default function GuestLookup() {
             </div>
           </form>
 
-          {/* Loading status */}
           {loading && (
             <div style={{ marginTop: 20, padding: "14px 16px", background: "#FEF3C7", borderRadius: 8, border: "1px solid #FCD34D", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 16, height: 16, border: "2.5px solid #D97706", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -174,10 +174,8 @@ export default function GuestLookup() {
           </div>
         )}
 
-        {/* Results */}
         {result && (
           <div style={{ animation: "fadeIn 0.4s ease" }}>
-            {/* Persona Card */}
             <div style={{
               background: pStyle.bg, border: `1.5px solid ${pStyle.accent}30`,
               borderRadius: 16, padding: "24px 28px", marginBottom: 24,
@@ -204,7 +202,6 @@ export default function GuestLookup() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-              {/* Social Profiles Found */}
               <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", marginBottom: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>
                   Social Profiles Found ({Object.keys(result.profiles).length})
@@ -243,7 +240,6 @@ export default function GuestLookup() {
                 )}
               </div>
 
-              {/* NLP Scores */}
               <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", marginBottom: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>
                   Behaviour Scores
@@ -254,7 +250,6 @@ export default function GuestLookup() {
               </div>
             </div>
 
-            {/* Recommendations */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 20 }}>
               <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
                 <div style={{ fontSize: 20, marginBottom: 8 }}>🛏️</div>
@@ -273,7 +268,6 @@ export default function GuestLookup() {
               </div>
             </div>
 
-            {/* Keywords */}
             {result.analysis.keywords.length > 0 && (
               <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>

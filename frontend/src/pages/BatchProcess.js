@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef } from "react";
 import axios from "axios";
 
+const API = "https://hospitality-app-39zz.onrender.com";
+
 function PageHeader({ title, subtitle }) {
   return (
     <div style={{ padding: "36px 40px 24px", borderBottom: "1px solid #D0D7DE", background: "#fff" }}>
@@ -43,11 +45,11 @@ export default function BatchProcess() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const res = await axios.post("/api/batch/upload", fd);
+      const res = await axios.post(`${API}/api/batch/upload`, fd);
       setJobId(res.data.jobId);
       setJob({ total: res.data.total, processed: 0, success: 0, failed: 0, status: "running", results: [] });
       pollRef.current = setInterval(async () => {
-        const status = await axios.get(`/api/batch/status/${res.data.jobId}`);
+        const status = await axios.get(`${API}/api/batch/status/${res.data.jobId}`);
         setJob(status.data);
         if (status.data.status === "completed") clearInterval(pollRef.current);
       }, 1500);
@@ -67,7 +69,6 @@ export default function BatchProcess() {
         subtitle="Upload a CSV file with guest names and emails. The system will analyse all guests automatically and save results to the database."
       />
       <div style={{ padding: "32px 40px" }}>
-        {/* CSV Format Guide */}
         <div style={{
           background: "#EFF6FF", border: "1px solid #BFDBFE",
           borderRadius: 12, padding: "16px 20px", marginBottom: 24,
@@ -83,7 +84,6 @@ export default function BatchProcess() {
           </div>
         </div>
 
-        {/* Drop Zone */}
         {!job && (
           <div
             onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}
@@ -132,7 +132,6 @@ export default function BatchProcess() {
           </button>
         )}
 
-        {/* Progress */}
         {job && (
           <div style={{ animation: "fadeIn 0.3s ease" }}>
             <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #D0D7DE", padding: "28px 32px", marginBottom: 24 }}>
@@ -171,7 +170,6 @@ export default function BatchProcess() {
               </div>
             </div>
 
-            {/* Results Table */}
             {job.results.length > 0 && (
               <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", overflow: "hidden" }}>
                 <div style={{ padding: "16px 24px", borderBottom: "1px solid #D0D7DE", fontWeight: 700, fontSize: 13, color: "#0D1117", textTransform: "uppercase", letterSpacing: 0.5 }}>
