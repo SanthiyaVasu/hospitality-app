@@ -14,9 +14,9 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts --max_old_space_size=4096 build"
   },
-  "proxy": "http://10.64.105.213:5000",
+  "proxy": "https://hospitality-app-39zz.onrender.com",
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
     "development": ["last 1 chrome version"]
