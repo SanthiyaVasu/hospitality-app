@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
-const API = "https://hospitality-app-39zz.onrender.com";
+const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 function PageHeader({ title, subtitle }) {
   return (

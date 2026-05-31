@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "https://hospitality-app-39zz.onrender.com";
-
+const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const PERSONA_COLORS = {
   "Luxury Traveler": { bg: "#FEF3C7", accent: "#D97706", icon: "💎" },
   "Business Traveler": { bg: "#EFF6FF", accent: "#2563EB", icon: "💼" },

@@ -10,15 +10,7 @@ const dbRoutes = require("./routes/db");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: [
-    "https://hospitality-frontend-d1zw.onrender.com",
-    "http://localhost:3000",
-    "http://10.64.105.213:3000",
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true,
-}));
+app.use(cors({ origin: 'http://localhost:3000' }))
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

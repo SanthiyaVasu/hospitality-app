@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from "react";
 import axios from "axios";
 
-const API = "https://hospitality-app-39zz.onrender.com";
+const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 function PageHeader({ title, subtitle }) {
   return (
