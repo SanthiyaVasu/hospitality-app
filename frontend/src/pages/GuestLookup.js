@@ -1,291 +1,351 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "https://hospitality-backend-w17q.onrender.com";
-const PERSONA_COLORS = {
-  "Luxury Traveler": { bg: "#FEF3C7", accent: "#D97706", icon: "💎" },
-  "Business Traveler": { bg: "#EFF6FF", accent: "#2563EB", icon: "💼" },
-  "Leisure Traveler": { bg: "#F0FDF4", accent: "#16A34A", icon: "🌴" },
-  "Adventure Traveler": { bg: "#FFF7ED", accent: "#EA580C", icon: "🧗" },
-  "Family Traveler": { bg: "#FDF4FF", accent: "#9333EA", icon: "👨‍👩‍👧" },
-  "Food Traveler": { bg: "#FFF1F2", accent: "#E11D48", icon: "🍽️" },
-  "Tech Traveler": { bg: "#F0F9FF", accent: "#0284C7", icon: "💻" },
-  "Eco Traveler": { bg: "#F0FDF4", accent: "#15803D", icon: "🌿" },
-  "Arts Traveler": { bg: "#FFF7ED", accent: "#C2410C", icon: "🎨" },
-  "Sports Traveler": { bg: "#ECFDF5", accent: "#059669", icon: "⚽" },
+const API = "http://localhost:5000";
+
+// ── Design tokens — single professional color system ──────────
+const C = {
+  bg:        "#F5F4F0",
+  surface:   "#FFFFFF",
+  border:    "#E2E0DA",
+  borderDark:"#C8C5BC",
+  text:      "#1C1917",
+  textMid:   "#57534E",
+  textMute:  "#A8A29E",
+  accent:    "#1C1917",
+  fill:      "#1C1917",
+  fillHover: "#292524",
+  tag:       "#F0EEE9",
+  tagBorder: "#DDD9D3",
+  divider:   "#EDEBE5",
+  inputBg:   "#FAFAF8",
 };
 
-const PLATFORM_ICONS = {
-  linkedin: { icon: "in", color: "#0A66C2", bg: "#E8F0FE" },
-  instagram: { icon: "📸", color: "#E1306C", bg: "#FFF0F5" },
-  twitter: { icon: "𝕏", color: "#000", bg: "#F5F5F5" },
-  github: { icon: "⌥", color: "#24292F", bg: "#F6F8FA" },
-  youtube: { icon: "▶", color: "#FF0000", bg: "#FFF0F0" },
-  reddit: { icon: "r/", color: "#FF4500", bg: "#FFF3EE" },
-  tripadvisor: { icon: "✈", color: "#00AA6C", bg: "#F0FFF8" },
-  medium: { icon: "M", color: "#000", bg: "#F5F5F5" },
+// ── SVG Icons ─────────────────────────────────────────────────
+const Icon = {
+  Search:      (s=15) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  User:        (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  Mail:        (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  Briefcase:   (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+  MapPin:      (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  DollarSign:  (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  Calendar:    (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  Award:       (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
+  Building:    (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20"/><line x1="9" y1="22" x2="9" y2="12"/><line x1="15" y1="22" x2="15" y2="12"/><line x1="9" y1="7" x2="9.01" y2="7"/><line x1="15" y1="7" x2="15.01" y2="7"/></svg>,
+  TrendUp:     (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+  Globe:       (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+  Layers:      (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+  Bed:         (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>,
+  Gift:        (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
+  FileText:    (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+  Tag:         (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+  ExtLink:     (s=12) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>,
+  Database:    (s=13) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+  Check:       (s=13) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  Alert:       (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+  Loader:      (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>,
 };
 
-function PageHeader({ title, subtitle }) {
+const PLATFORM_CONFIG = {
+  linkedin:    { label:"LinkedIn"    },
+  instagram:   { label:"Instagram"   },
+  twitter:     { label:"Twitter / X" },
+  github:      { label:"GitHub"      },
+  youtube:     { label:"YouTube"     },
+  reddit:      { label:"Reddit"      },
+  tripadvisor: { label:"TripAdvisor" },
+  medium:      { label:"Medium"      },
+};
+
+function Card({ children, style={} }) {
   return (
-    <div style={{ padding: "36px 40px 24px", borderBottom: "1px solid #D0D7DE", background: "#fff" }}>
-      <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: "#0D1117", marginBottom: 4 }}>{title}</h1>
-      <p style={{ color: "#57606A", fontSize: 14 }}>{subtitle}</p>
+    <div style={{ background:C.surface, borderRadius:10, border:`1px solid ${C.border}`, padding:"22px 26px", ...style }}>
+      {children}
     </div>
   );
 }
 
-function ScoreBar({ label, value, color }) {
+function SectionLabel({ icon, children, right }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 12, color: "#57606A", fontWeight: 500 }}>{label}</span>
-        <span style={{ fontSize: 12, color: "#0D1117", fontWeight: 600 }}>{value}%</span>
+    <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:16 }}>
+      <span style={{ color:C.textMute, display:"flex" }}>{icon}</span>
+      <span style={{ fontSize:10, fontWeight:700, color:C.textMid, textTransform:"uppercase", letterSpacing:"0.09em" }}>{children}</span>
+      {right && <span style={{ marginLeft:"auto", fontSize:10, color:C.textMute, background:C.tag, padding:"2px 8px", borderRadius:4, border:`1px solid ${C.tagBorder}` }}>{right}</span>}
+    </div>
+  );
+}
+
+function MetaCell({ icon, label, value, sub }) {
+  if (!value || value === "Unknown" || value === null || value === "null") return null;
+  return (
+    <div style={{ padding:"13px 14px", borderRadius:8, border:`1px solid ${C.border}`, background:C.bg }}>
+      <span style={{ color:C.textMute, display:"flex", marginBottom:6 }}>{icon}</span>
+      <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:3 }}>{label}</div>
+      <div style={{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.4 }}>{value}</div>
+      {sub && <div style={{ fontSize:10, color:C.textMute, marginTop:2 }}>via {sub}</div>}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height:1, background:C.divider, margin:"14px 0" }} />;
+}
+
+function Pill({ children }) {
+  return (
+    <span style={{ display:"inline-block", padding:"3px 10px", borderRadius:4, fontSize:11, fontWeight:500, background:C.tag, color:C.textMid, border:`1px solid ${C.tagBorder}`, margin:"0 4px 4px 0" }}>
+      {children}
+    </span>
+  );
+}
+
+function ScoreRow({ label, value }) {
+  return (
+    <div style={{ marginBottom:10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+        <span style={{ fontSize:12, color:C.textMid, fontWeight:500 }}>{label}</span>
+        <span style={{ fontSize:12, color:C.text, fontWeight:600 }}>{value}%</span>
       </div>
-      <div style={{ height: 6, background: "#E8ECF0", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{
-          height: "100%", width: `${value}%`, borderRadius: 10,
-          background: color, transition: "width 0.8s ease",
-        }} />
+      <div style={{ height:5, background:C.tag, borderRadius:3, overflow:"hidden" }}>
+        <div style={{ height:"100%", width:`${value}%`, borderRadius:3, background:C.text, opacity:0.15+(value/100)*0.8, transition:"width 0.7s ease" }} />
       </div>
     </div>
   );
 }
 
-const SCORE_COLORS = {
-  luxury: "#D97706", business: "#2563EB", leisure: "#16A34A", adventure: "#EA580C",
-  family: "#9333EA", food: "#E11D48", tech: "#0284C7", eco: "#15803D", arts: "#C2410C", sports: "#059669",
-};
+function InputField({ label, icon, ...props }) {
+  return (
+    <div>
+      <label style={{ display:"block", fontSize:10, fontWeight:700, color:C.textMid, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.07em" }}>{label}</label>
+      <div style={{ position:"relative" }}>
+        <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:C.textMute, display:"flex" }}>{icon}</span>
+        <input {...props} style={{ width:"100%", padding:"9px 12px 9px 35px", borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, outline:"none", color:C.text, background:C.inputBg, fontFamily:"inherit", boxSizing:"border-box", transition:"all 0.15s" }}
+          onFocus={e=>{ e.target.style.borderColor=C.text; e.target.style.boxShadow=`0 0 0 3px rgba(28,25,23,0.07)`; e.target.style.background=C.surface; }}
+          onBlur={e=> { e.target.style.borderColor=C.border; e.target.style.boxShadow="none"; e.target.style.background=C.inputBg; }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function GuestLookup() {
-  const [form, setForm] = useState({ name: "", email: "" });
+  const [form, setForm]       = useState({ name:"", email:"" });
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
-  const [step, setStep] = useState("");
+  const [result, setResult]   = useState(null);
+  const [error, setError]     = useState("");
+  const [step, setStep]       = useState("");
 
   const STEPS = [
-    "Searching Google with email ID...",
-    "Scanning LinkedIn, Instagram, GitHub...",
-    "Scraping public profile data...",
-    "Running NLP analysis...",
-    "Generating guest persona...",
-    "Saving to database...",
+    "Searching email across platforms...",
+    "Querying Hunter.io & People Data Labs...",
+    "Extracting profile metadata...",
+    "Running NLP behavioural analysis...",
+    "Generating guest intelligence report...",
+    "Saving record to database...",
   ];
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim()) return;
     setLoading(true); setResult(null); setError("");
-    let stepIdx = 0;
-    const interval = setInterval(() => {
-      stepIdx = (stepIdx + 1) % STEPS.length;
-      setStep(STEPS[stepIdx]);
-    }, 2500);
+    let i=0;
+    const iv = setInterval(()=>{ i=(i+1)%STEPS.length; setStep(STEPS[i]); }, 2500);
     setStep(STEPS[0]);
     try {
       const res = await axios.post(`${API}/api/guest/lookup`, form);
       setResult(res.data);
-    } catch (err) {
-      setError(err.response?.data?.error || "Something went wrong. Please try again.");
-    } finally {
-      clearInterval(interval);
-      setLoading(false); setStep("");
-    }
+    } catch(err) {
+      setError(err.response?.data?.error || "Analysis failed. Please try again.");
+    } finally { clearInterval(iv); setLoading(false); setStep(""); }
   }
 
-  const persona = result?.analysis?.persona;
-  const pStyle = PERSONA_COLORS[persona] || { bg: "#F6F8FA", accent: "#57606A", icon: "👤" };
+  const persona = result?.analysis?.persona || "";
+  const meta    = result?.metadata || result?.analysis?.metadata || null;
+  const dq      = result?.analysis?.dataQuality;
 
   return (
-    <div>
-      <PageHeader
-        title="Guest Intelligence Lookup"
-        subtitle="Enter a guest's name and email to discover their online presence, analyse behaviour, and generate a guest persona."
-      />
-      <div style={{ padding: "32px 40px" }}>
-        <div style={{
-          background: "#fff", borderRadius: 16, border: "1px solid #D0D7DE",
-          padding: "28px 32px", marginBottom: 28,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}>
+    <div style={{ fontFamily:"'DM Sans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
+
+      <div style={{ padding:"28px 40px 20px", borderBottom:`1px solid ${C.border}`, background:C.surface }}>
+        <h1 style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:"-0.3px", marginBottom:3 }}>Guest Intelligence Lookup</h1>
+        <p style={{ color:C.textMid, fontSize:13 }}>Enter a guest's name and email to generate a complete intelligence profile.</p>
+      </div>
+
+      <div style={{ padding:"24px 40px" }}>
+
+        <Card style={{ marginBottom:18 }}>
           <form onSubmit={handleSubmit}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 16, alignItems: "end" }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#0D1117", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Guest Name
-                </label>
-                <input
-                  type="text" placeholder="e.g. Santhosh Kumar"
-                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  style={{
-                    width: "100%", padding: "10px 14px", borderRadius: 8, fontSize: 14,
-                    border: "1.5px solid #D0D7DE", outline: "none", color: "#0D1117",
-                    fontFamily: "'DM Sans', sans-serif", transition: "border-color 0.2s",
-                  }}
-                  onFocus={e => e.target.style.borderColor = "#B8860B"}
-                  onBlur={e => e.target.style.borderColor = "#D0D7DE"}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#0D1117", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Email ID
-                </label>
-                <input
-                  type="email" placeholder="e.g. santhosh@gmail.com"
-                  value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  style={{
-                    width: "100%", padding: "10px 14px", borderRadius: 8, fontSize: 14,
-                    border: "1.5px solid #D0D7DE", outline: "none", color: "#0D1117",
-                    fontFamily: "'DM Sans', sans-serif", transition: "border-color 0.2s",
-                  }}
-                  onFocus={e => e.target.style.borderColor = "#B8860B"}
-                  onBlur={e => e.target.style.borderColor = "#D0D7DE"}
-                />
-              </div>
-              <button
-                type="submit" disabled={loading || !form.name || !form.email}
-                style={{
-                  padding: "10px 28px", borderRadius: 8, border: "none",
-                  background: loading ? "#D0D7DE" : "linear-gradient(135deg, #B8860B, #D4A017)",
-                  color: loading ? "#8B949E" : "#fff", fontSize: 14, fontWeight: 600,
-                  cursor: loading ? "not-allowed" : "pointer", whiteSpace: "nowrap",
-                  fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.3,
-                  transition: "all 0.2s",
-                }}
-              >
-                {loading ? "Analysing..." : "🔍 Analyse Guest"}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap:14, alignItems:"end" }}>
+              <InputField label="Guest Name" icon={Icon.User()} type="text" placeholder="e.g. Santhosh Kumar"
+                value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
+              <InputField label="Email Address" icon={Icon.Mail()} type="email" placeholder="e.g. name@company.com"
+                value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} />
+              <button type="submit" disabled={loading||!form.name||!form.email}
+                style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 22px", borderRadius:7, border:"none", background:C.fill, color:"#fff", fontSize:13, fontWeight:600, cursor:(loading||!form.name||!form.email)?"not-allowed":"pointer", opacity:(loading||!form.name||!form.email)?0.5:1, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                {loading ? <>{Icon.Loader()} Analysing...</> : <>{Icon.Search()} Analyse Guest</>}
               </button>
             </div>
           </form>
-
           {loading && (
-            <div style={{ marginTop: 20, padding: "14px 16px", background: "#FEF3C7", borderRadius: 8, border: "1px solid #FCD34D", display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 16, height: 16, border: "2.5px solid #D97706", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-              <span style={{ fontSize: 13, color: "#92400E", fontWeight: 500 }}>{step}</span>
+            <div style={{ marginTop:14, padding:"10px 14px", background:C.bg, borderRadius:7, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:9 }}>
+              <span style={{ color:C.textMute, display:"flex" }}>{Icon.Loader()}</span>
+              <span style={{ fontSize:12, color:C.textMid }}>{step}</span>
             </div>
           )}
-        </div>
+        </Card>
 
         {error && (
-          <div style={{ padding: 16, background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 10, color: "#991B1B", fontSize: 13, marginBottom: 24 }}>
-            ⚠️ {error}
+          <div style={{ padding:"11px 14px", background:C.bg, border:`1px solid ${C.borderDark}`, borderRadius:8, color:C.text, fontSize:13, marginBottom:18, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ color:C.textMid, display:"flex" }}>{Icon.Alert()}</span> {error}
           </div>
         )}
 
         {result && (
-          <div style={{ animation: "fadeIn 0.4s ease" }}>
-            <div style={{
-              background: pStyle.bg, border: `1.5px solid ${pStyle.accent}30`,
-              borderRadius: 16, padding: "24px 28px", marginBottom: 24,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <div style={{ fontSize: 40 }}>{pStyle.icon}</div>
+          <div style={{ animation:"fadeIn 0.3s ease" }}>
+
+            <Card style={{ marginBottom:18, borderLeft:`3px solid ${C.text}`, paddingLeft:23 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: pStyle.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>Guest Persona</div>
-                  <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: "#0D1117" }}>{persona}</div>
-                  <div style={{ fontSize: 13, color: "#57606A", marginTop: 2 }}>{result.guest.name} · {result.guest.email}</div>
+                  <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:5 }}>Guest Persona</div>
+                  <div style={{ fontSize:19, fontWeight:700, color:C.text, letterSpacing:"-0.2px" }}>{persona}</div>
+                  <div style={{ fontSize:13, color:C.textMid, marginTop:3 }}>{result.guest.name}&nbsp;&nbsp;·&nbsp;&nbsp;{result.guest.email}</div>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:7 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 10px", borderRadius:5, background:C.tag, border:`1px solid ${C.border}` }}>
+                    <span style={{ color:C.textMid, display:"flex" }}>{Icon.Check()}</span>
+                    <span style={{ fontSize:11, fontWeight:600, color:C.textMid }}>{dq} Data Quality</span>
+                  </div>
+                  <div style={{ fontSize:11, color:C.textMute, display:"flex", alignItems:"center", gap:4 }}>
+                    {Icon.Database()} Record #{result.guestId}
+                  </div>
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: "#57606A", marginBottom: 4 }}>Data Quality</div>
-                <div style={{
-                  display: "inline-block", padding: "4px 12px", borderRadius: 20,
-                  background: result.analysis.dataQuality === "High" ? "#D1FAE5" : result.analysis.dataQuality === "Medium" ? "#FEF3C7" : "#F3F4F6",
-                  color: result.analysis.dataQuality === "High" ? "#065F46" : result.analysis.dataQuality === "Medium" ? "#92400E" : "#374151",
-                  fontSize: 12, fontWeight: 600,
-                }}>{result.analysis.dataQuality}</div>
-                <div style={{ fontSize: 11, color: "#8B949E", marginTop: 6 }}>DB ID: #{result.guestId}</div>
-              </div>
-            </div>
+            </Card>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", marginBottom: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Social Profiles Found ({Object.keys(result.profiles).length})
-                </h3>
-                {Object.keys(result.profiles).length === 0 ? (
-                  <p style={{ color: "#8B949E", fontSize: 13 }}>No public profiles found for this email.</p>
-                ) : (
-                  Object.entries(result.profiles).map(([platform, url]) => {
-                    const p = PLATFORM_ICONS[platform] || { icon: "🌐", color: "#57606A", bg: "#F6F8FA" };
+            {meta && (
+              <Card style={{ marginBottom:18 }}>
+                <SectionLabel icon={Icon.Layers()} right={meta.dataSource || "Search Snippets"}>Guest Intelligence Profile</SectionLabel>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:14 }}>
+                  <MetaCell icon={Icon.User()}       label="Full Name"       value={meta.fullName}                                    sub={meta.dataSource} />
+                  <MetaCell icon={Icon.Calendar()}   label="Age Estimate"    value={meta.age ? `${meta.age} years old` : meta.ageRange} sub={meta.ageSource} />
+                  <MetaCell icon={Icon.MapPin()}     label="Location"        value={meta.location}                                    sub={meta.locationSource} />
+                  <MetaCell icon={Icon.Briefcase()}  label="Job Title"       value={meta.profession || meta.jobTitle}                 sub={meta.dataSource} />
+                  <MetaCell icon={Icon.Building()}   label="Company"         value={meta.company || meta.jobCompany}                  sub={meta.dataSource} />
+                  <MetaCell icon={Icon.Award()}      label="Seniority"       value={meta.seniority || meta.jobSeniority}              sub={meta.dataSource} />
+                  <MetaCell icon={Icon.Globe()}      label="Industry"        value={meta.industry}                                    sub={meta.dataSource} />
+                  <MetaCell icon={Icon.DollarSign()} label="Salary Estimate" value={meta.salary}                                     sub={meta.salarySource} />
+                  <MetaCell icon={Icon.TrendUp()}    label="Experience"      value={meta.yearsExperience ? `${meta.yearsExperience} years` : null} sub={meta.dataSource} />
+                </div>
+                <Divider />
+                <div style={{ display:"flex", flexWrap:"wrap", gap:16, alignItems:"center" }}>
+                  {meta.travelFrequency && (
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.07em" }}>Travel Frequency</span>
+                      <Pill>{meta.travelFrequency}</Pill>
+                    </div>
+                  )}
+                  {meta.spendingLevel && (
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.07em" }}>Spending Level</span>
+                      <Pill>{meta.spendingLevel}</Pill>
+                    </div>
+                  )}
+                </div>
+                {meta.skills?.length > 0 && (
+                  <><Divider />
+                  <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:9 }}>Skills</div>
+                  <div>{meta.skills.map(s=><Pill key={s}>{s}</Pill>)}</div></>
+                )}
+                {(meta.education?.length > 0 || meta.pastCompanies?.length > 0) && (
+                  <><Divider />
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
+                    {meta.education?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Education</div>
+                        {meta.education.map((e,i)=><div key={i} style={{ fontSize:12, color:C.textMid, padding:"5px 0", borderBottom:`1px solid ${C.divider}` }}>{e}</div>)}
+                      </div>
+                    )}
+                    {meta.pastCompanies?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Past Companies</div>
+                        {meta.pastCompanies.map((c,i)=><div key={i} style={{ fontSize:12, color:C.textMid, padding:"5px 0", borderBottom:`1px solid ${C.divider}` }}>{c}</div>)}
+                      </div>
+                    )}
+                  </div></>
+                )}
+                {meta.lifestyle?.length > 0 && (
+                  <><Divider />
+                  <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:9 }}>Lifestyle Signals</div>
+                  <div>{meta.lifestyle.map(l=><Pill key={l}>{l}</Pill>)}</div></>
+                )}
+              </Card>
+            )}
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18, marginBottom:18 }}>
+              <Card>
+                <SectionLabel icon={Icon.Globe()}>Social Profiles ({Object.keys(result.profiles).length})</SectionLabel>
+                {Object.keys(result.profiles).length === 0
+                  ? <p style={{ color:C.textMute, fontSize:13 }}>No public profiles found.</p>
+                  : Object.entries(result.profiles).map(([platform, url]) => {
+                    const p = PLATFORM_CONFIG[platform] || { label:platform };
                     return (
-                      <div key={platform} style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "10px 12px", borderRadius: 8, background: p.bg, marginBottom: 8,
-                      }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8,
-                          background: p.color, color: "#fff",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 12, fontWeight: 700, flexShrink: 0,
-                        }}>{p.icon}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#0D1117", textTransform: "capitalize" }}>{platform}</div>
-                          <a href={url} target="_blank" rel="noreferrer" style={{
-                            fontSize: 11, color: p.color, textDecoration: "none",
-                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block",
-                          }}>{url.length > 50 ? url.substring(0, 50) + "..." : url}</a>
+                      <div key={platform} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 0", borderBottom:`1px solid ${C.divider}` }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                          <div style={{ width:6, height:6, borderRadius:"50%", background:C.text, flexShrink:0 }} />
+                          <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{p.label}</span>
                         </div>
+                        <a href={url} target="_blank" rel="noreferrer"
+                          style={{ fontSize:11, color:C.textMid, textDecoration:"none", display:"flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:4, border:`1px solid ${C.border}`, background:C.bg }}>
+                          View {Icon.ExtLink()}
+                        </a>
                       </div>
                     );
                   })
-                )}
-                {result.scrapedPlatforms.length > 0 && (
-                  <div style={{ marginTop: 12, padding: "8px 10px", background: "#F0FDF4", borderRadius: 6 }}>
-                    <span style={{ fontSize: 11, color: "#065F46" }}>✅ Scraped data from: {result.scrapedPlatforms.join(", ")}</span>
+                }
+                {result.scrapedPlatforms?.length > 0 && (
+                  <div style={{ marginTop:12, padding:"7px 10px", background:C.bg, borderRadius:5, fontSize:11, color:C.textMid, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:5 }}>
+                    {Icon.Check()} Data scraped from: {result.scrapedPlatforms.join(", ")}
                   </div>
                 )}
-              </div>
-
-              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", marginBottom: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Behaviour Scores
-                </h3>
-                {Object.entries(result.analysis.scores).map(([key, val]) => (
-                  <ScoreBar key={key} label={key.charAt(0).toUpperCase() + key.slice(1)} value={val} color={SCORE_COLORS[key]} />
+              </Card>
+              <Card>
+                <SectionLabel icon={Icon.TrendUp()}>Behaviour Scores</SectionLabel>
+                {Object.entries(result.analysis.scores).map(([key,val])=>(
+                  <ScoreRow key={key} label={key.charAt(0).toUpperCase()+key.slice(1)} value={val} />
                 ))}
-              </div>
+              </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 20 }}>
-              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
-                <div style={{ fontSize: 20, marginBottom: 8 }}>🛏️</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#57606A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Room Recommendation</div>
-                <div style={{ fontSize: 13, color: "#0D1117", lineHeight: 1.5 }}>{result.analysis.roomRecommendation}</div>
-              </div>
-              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
-                <div style={{ fontSize: 20, marginBottom: 8 }}>🎁</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#57606A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Personalized Offer</div>
-                <div style={{ fontSize: 13, color: "#0D1117", lineHeight: 1.5 }}>{result.analysis.personalizedOffer}</div>
-              </div>
-              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
-                <div style={{ fontSize: 20, marginBottom: 8 }}>📝</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#57606A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Staff Note</div>
-                <div style={{ fontSize: 13, color: "#0D1117", lineHeight: 1.5 }}>{result.analysis.staffNote}</div>
-              </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:18, marginBottom:18 }}>
+              {[
+                { icon:Icon.Bed(),      label:"Room Recommendation", value:result.analysis.roomRecommendation },
+                { icon:Icon.Gift(),     label:"Personalized Offer",   value:result.analysis.personalizedOffer },
+                { icon:Icon.FileText(), label:"Staff Note",           value:result.analysis.staffNote },
+              ].map(({icon,label,value})=>(
+                <Card key={label} style={{ marginBottom:0 }}>
+                  <span style={{ color:C.textMute, display:"flex", marginBottom:8 }}>{icon}</span>
+                  <div style={{ fontSize:10, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{label}</div>
+                  <div style={{ fontSize:13, color:C.text, lineHeight:1.65 }}>{value}</div>
+                </Card>
+              ))}
             </div>
 
-            {result.analysis.keywords.length > 0 && (
-              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #D0D7DE", padding: "20px 24px" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#0D1117", marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Keywords Detected ({result.analysis.keywords.length})
-                </h3>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {result.analysis.keywords.map(kw => (
-                    <span key={kw} style={{
-                      padding: "4px 12px", borderRadius: 20,
-                      background: "#F6F8FA", border: "1px solid #D0D7DE",
-                      fontSize: 12, color: "#57606A",
-                    }}>{kw}</span>
-                  ))}
-                </div>
-              </div>
+            {result.analysis.keywords?.length > 0 && (
+              <Card>
+                <SectionLabel icon={Icon.Tag()}>Keywords Detected ({result.analysis.keywords.length})</SectionLabel>
+                <div>{result.analysis.keywords.map(kw=><Pill key={kw}>{kw}</Pill>)}</div>
+              </Card>
             )}
+
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes spin   { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+        * { box-sizing: border-box; margin:0; padding:0; }
+      `}</style>
     </div>
   );
 }

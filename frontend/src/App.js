@@ -6,91 +6,117 @@ import BatchProcess from "./pages/BatchProcess";
 import PreferenceForm from "./pages/PreferenceForm";
 import Dashboard from "./pages/Dashboard";
 
+/* ── SVG Icons ─────────────────────────────────────────────── */
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
+const BatchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+  </svg>
+);
+const PreferenceIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 11l3 3L22 4"/>
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+  </svg>
+);
+const DashboardIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1"/>
+    <rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="14" y="14" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+  </svg>
+);
+const HotelIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    <polyline points="9 22 9 12 15 12 15 22"/>
+  </svg>
+);
+
+/* ── Nav Config ────────────────────────────────────────────── */
 const NAV_ITEMS = [
-  { path: "/", label: "Guest Lookup", icon: "🔍", desc: "Search by email" },
-  { path: "/batch", label: "Batch Processing", icon: "📂", desc: "Upload CSV" },
-  { path: "/preference", label: "Guest Preferences", icon: "📋", desc: "Guest form" },
-  { path: "/dashboard", label: "Dashboard", icon: "📊", desc: "Analytics" },
+  { path: "/",           label: "Guest Lookup",      Icon: SearchIcon,     desc: "Search by email"  },
+  { path: "/batch",      label: "Batch Processing",  Icon: BatchIcon,      desc: "Upload CSV file"  },
+  { path: "/preference", label: "Guest Preferences", Icon: PreferenceIcon, desc: "Manage form"      },
+  { path: "/dashboard",  label: "Dashboard",         Icon: DashboardIcon,  desc: "Analytics"        },
 ];
 
+/* ── Sidebar ────────────────────────────────────────────────── */
 function Sidebar() {
   const loc = useLocation();
   return (
-    <aside style={{
-      width: 240,
-      background: "#0D1117",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      position: "fixed",
-      left: 0, top: 0, bottom: 0,
-      zIndex: 100,
-      borderRight: "1px solid rgba(255,255,255,0.06)",
-    }}>
-      <div style={{ padding: "28px 24px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: "linear-gradient(135deg, #B8860B, #D4A017)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, flexShrink: 0,
-          }}>🏨</div>
-          <div>
-            <div style={{ fontFamily: "'DM Serif Display', serif", color: "#fff", fontSize: 15, lineHeight: 1.2 }}>Hospitality</div>
-            <div style={{ fontFamily: "'DM Serif Display', serif", color: "#D4A017", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase" }}>Intelligence</div>
-          </div>
+    <aside className="sidebar">
+
+      {/* Brand */}
+      <div className="sidebar-brand">
+        <div className="sidebar-logo"><HotelIcon /></div>
+        <div className="sidebar-brand-text">
+          <span className="sidebar-brand-name">Hospitality</span>
+          <span className="sidebar-brand-sub">Intelligence Suite</span>
         </div>
       </div>
-      <nav style={{ flex: 1, padding: "16px 12px" }}>
-        {NAV_ITEMS.map((item) => {
-          const active = loc.pathname === item.path || (item.path !== "/" && loc.pathname.startsWith(item.path));
+
+      {/* Nav */}
+      <nav className="sidebar-nav">
+        <p className="sidebar-section-label">Main Menu</p>
+        {NAV_ITEMS.map(({ path, label, Icon, desc }) => {
+          const active = loc.pathname === path || (path !== "/" && loc.pathname.startsWith(path));
           return (
-            <NavLink key={item.path} to={item.path} style={{ textDecoration: "none" }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "10px 12px", borderRadius: 10, marginBottom: 4,
-                background: active ? "rgba(184,134,11,0.15)" : "transparent",
-                border: active ? "1px solid rgba(184,134,11,0.3)" : "1px solid transparent",
-                cursor: "pointer",
-              }}>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
-                <div>
-                  <div style={{ color: active ? "#F5E6C3" : "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>{item.label}</div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{item.desc}</div>
+            <NavLink key={path} to={path} style={{ textDecoration: "none" }}>
+              <div className={`sidebar-item${active ? " sidebar-item--active" : ""}`}>
+                <span className="sidebar-item-icon"><Icon /></span>
+                <div className="sidebar-item-text">
+                  <span className="sidebar-item-label">{label}</span>
+                  <span className="sidebar-item-desc">{desc}</span>
                 </div>
-                {active && <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "#D4A017", flexShrink: 0 }} />}
+                {active && <div className="sidebar-item-dot" />}
               </div>
             </NavLink>
           );
         })}
       </nav>
-      <div style={{ padding: "16px 24px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", lineHeight: 1.5 }}>
-          Powered by AI & NLP<br /><span style={{ color: "rgba(255,255,255,0.15)" }}>v1.0.0 · Node.js + React</span>
+
+      {/* Footer */}
+      <div className="sidebar-footer">
+        <div className="sidebar-status">
+          <span className="sidebar-status-dot" />
+          <span className="sidebar-status-text">System Online</span>
         </div>
+        <div className="sidebar-version">AI &amp; NLP · v1.0.0 · Node.js + React</div>
       </div>
+
     </aside>
   );
 }
 
+/* ── Layout ─────────────────────────────────────────────────── */
 function Layout({ children }) {
   return (
-    <div style={{ display: "flex" }}>
+    <div style={{ display: "flex", background: "var(--bg-app)", minHeight: "100vh" }}>
       <Sidebar />
-      <main style={{ marginLeft: 240, flex: 1, minHeight: "100vh", background: "#F6F8FA" }}>{children}</main>
+      <main style={{ marginLeft: "var(--sidebar-width)", flex: 1, minHeight: "100vh" }}>
+        {children}
+      </main>
     </div>
   );
 }
 
+/* ── App ────────────────────────────────────────────────────── */
 export default function App() {
   return (
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<GuestLookup />} />
-          <Route path="/batch" element={<BatchProcess />} />
-          <Route path="/preference" element={<PreferenceForm />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/"           element={<GuestLookup />}   />
+          <Route path="/batch"      element={<BatchProcess />}  />
+          <Route path="/preference" element={<PreferenceForm />}/>
+          <Route path="/dashboard"  element={<Dashboard />}     />
         </Routes>
       </Layout>
     </BrowserRouter>

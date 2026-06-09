@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "https://hospitality-backend-w17q.onrender.com";
+const API = "http://localhost:5000";
 function PageHeader({ title, subtitle }) {
   return (
     <div

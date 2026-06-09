@@ -1,28 +1,31 @@
-const express = require("express");
-const router = express.Router();
-const crypto = require("crypto");
-const pool = require("../db");
+const express  = require("express");
+const router   = express.Router();
+const crypto   = require("crypto");
+const pool     = require("../db");
 const { searchGuest } = require("../search");
 const { analyzeText } = require("../nlp");
 
-// POST /api/guest/lookup
+// ── POST /api/guest/lookup ───────────────────────────────────
 router.post("/lookup", async (req, res) => {
   const { name, email } = req.body;
   if (!name || !email) return res.status(400).json({ error: "Name and email are required" });
 
   try {
-    const emailHash = crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex");
-    const emailLocal = email.split("@")[0];
+    const emailHash   = crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex");
+    const emailLocal  = email.split("@")[0];
     const emailDomain = email.split("@")[1] || "";
 
-    // Step 1: Search across platforms
-    const { found, scrapedData, snippets } = await searchGuest(email, name);
+    // Step 1: Search + metadata extraction
+    const { found, scrapedData, snippets, metadata } = await searchGuest(email, name);
 
-    // Step 2: NLP Analysis
-    const allText = [...snippets, ...Object.values(scrapedData)];
-    const analysis = analyzeText(allText.length > 0 ? allText : [name, emailLocal]);
+    // Step 2: NLP Analysis (pass metadata for boosted scoring)
+    const allText  = [...snippets, ...Object.values(scrapedData)];
+    const analysis = analyzeText(
+      allText.length > 0 ? allText : [name, emailLocal],
+      metadata
+    );
 
-    // Step 3: Save to DB
+    // Step 3: Save guest to DB
     let guestId;
     const existing = await pool.query("SELECT id FROM guests WHERE email_hash = $1", [emailHash]);
     if (existing.rows.length > 0) {
@@ -54,41 +57,52 @@ router.post("/lookup", async (req, res) => {
       );
     }
 
-    // Save analysis
+    // Save analysis + metadata as JSON in staff_note column (or dedicated column)
     await pool.query("DELETE FROM guest_analysis WHERE guest_id=$1", [guestId]);
     await pool.query(
-      `INSERT INTO guest_analysis 
+      `INSERT INTO guest_analysis
        (guest_id, persona, luxury_score, business_score, leisure_score, adventure_score,
         family_score, food_score, tech_score, eco_score, arts_score, sports_score,
         sentiment_score, keywords_detected, data_quality, snippets_count,
         room_recommendation, personalized_offer, staff_note)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [
-        guestId, analysis.persona,
-        analysis.scores.luxury, analysis.scores.business, analysis.scores.leisure,
-        analysis.scores.adventure, analysis.scores.family, analysis.scores.food,
-        analysis.scores.tech, analysis.scores.eco, analysis.scores.arts, analysis.scores.sports,
-        analysis.sentimentScore, analysis.keywords.join(","),
-        analysis.dataQuality, analysis.snippetsCount,
-        analysis.roomRecommendation, analysis.personalizedOffer, analysis.staffNote,
+        guestId,
+        analysis.persona,
+        analysis.scores.luxury,    analysis.scores.business,
+        analysis.scores.leisure,   analysis.scores.adventure,
+        analysis.scores.family,    analysis.scores.food,
+        analysis.scores.tech,      analysis.scores.eco,
+        analysis.scores.arts,      analysis.scores.sports,
+        analysis.sentimentScore,
+        analysis.keywords.join(","),
+        analysis.dataQuality,
+        analysis.snippetsCount,
+        analysis.roomRecommendation,
+        analysis.personalizedOffer,
+        // store metadata as JSON inside staff_note field
+        analysis.staffNote + " ||METADATA|| " + JSON.stringify(metadata),
       ]
     );
 
+    // ── Full response including metadata ────────────────────
     res.json({
       success: true,
       guestId,
       guest: { name, email, emailLocal, emailDomain },
-      profiles: found,
+      profiles:         found,
       scrapedPlatforms: Object.keys(scrapedData),
+      metadata,           // ← NEW: age, salary, location, lifestyle, etc.
       analysis,
     });
+
   } catch (err) {
     console.error("Lookup error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/guest/all
+// ── GET /api/guest/all ───────────────────────────────────────
 router.get("/all", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -107,15 +121,33 @@ router.get("/all", async (req, res) => {
   }
 });
 
-// GET /api/guest/:id
+// ── GET /api/guest/:id ───────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const guest = await pool.query("SELECT * FROM guests WHERE id=$1", [id]);
+    const { id }   = req.params;
+    const guest    = await pool.query("SELECT * FROM guests WHERE id=$1", [id]);
     const profiles = await pool.query("SELECT * FROM social_profiles WHERE guest_id=$1", [id]);
     const analysis = await pool.query("SELECT * FROM guest_analysis WHERE guest_id=$1", [id]);
-    const scraped = await pool.query("SELECT platform, word_count, scraped_at FROM scraped_data WHERE guest_id=$1", [id]);
-    res.json({ guest: guest.rows[0], profiles: profiles.rows, analysis: analysis.rows[0], scraped: scraped.rows });
+    const scraped  = await pool.query(
+      "SELECT platform, word_count, scraped_at FROM scraped_data WHERE guest_id=$1", [id]
+    );
+
+    // Parse metadata back out of staff_note if stored there
+    let parsedMetadata = null;
+    if (analysis.rows[0]?.staff_note?.includes("||METADATA||")) {
+      try {
+        const parts    = analysis.rows[0].staff_note.split("||METADATA||");
+        parsedMetadata = JSON.parse(parts[1]);
+        analysis.rows[0].staff_note = parts[0].trim();
+      } catch {}
+    }
+
+    res.json({
+      guest:    guest.rows[0],
+      profiles: profiles.rows,
+      analysis: { ...analysis.rows[0], metadata: parsedMetadata },
+      scraped:  scraped.rows,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
