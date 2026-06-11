@@ -16,10 +16,8 @@ app.use(cors({
     "http://localhost:3000",
     "https://hospitality-app-39zz.onrender.com",
     "https://hospitality-frontend.onrender.com",
-    "https://hospitality-frontend-app.onrender.com",
     process.env.FRONTEND_URL,
   ].filter(Boolean),
-  methods:     ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
 }));
 
