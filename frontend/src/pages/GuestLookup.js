@@ -370,9 +370,9 @@ export default function GuestLookup(){
   function QRCodeSection({ guest }) {
   const [copied, setCopied] = useState(false);
 
-  const formUrl = window.location.origin + "/preferences?" +
-    "name="  + encodeURIComponent(guest.name)  + "&" +
-    "email=" + encodeURIComponent(guest.email);
+  const formUrl = "https://hospitality-app-39zz.onrender.com/preferences?" +
+  "name="  + encodeURIComponent(guest.name)  + "&" +
+  "email=" + encodeURIComponent(guest.email);
 
   const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" +
     encodeURIComponent(formUrl);
