@@ -1,11 +1,69 @@
 const express  = require("express");
 const router   = express.Router();
 const crypto   = require("crypto");
+const axios    = require("axios");
 const pool     = require("../db");
-const { searchGuest } = require("../search");
-const { analyzeText } = require("../nlp");
+const { searchGuest }             = require("../search");
+const { analyzeText }             = require("../nlp");
+const { getHotelRecommendations } = require("../hotelService");
 
-// ── POST /api/guest/lookup ───────────────────────────────────
+// ── Enrich ads with Unsplash images ──────────────────────────
+async function enrichAdsWithImages(ads, metadata) {
+  if (!ads || ads.length === 0) return [];
+  const UNSPLASH_KEY = process.env.UNSPLASH_ACCESS_KEY;
+  if (!UNSPLASH_KEY) return ads;
+
+  const city = metadata?.location || "hotel";
+
+  const queryMap = {
+    "Room Upgrade":    `luxury hotel room suite interior`,
+    "Luxury Brand":    `luxury boutique shopping elegant`,
+    "Luxury Dining":   `fine dining restaurant elegant`,
+    "Dining":          `hotel restaurant food dining`,
+    "Travel Activity": `travel tourism activity ${city}`,
+    "Activity":        `hotel activity experience`,
+    "Wellness":        `hotel spa wellness relaxation`,
+    "Service":         `hotel concierge business professional`,
+    "Room Package":    `hotel room suite ${city}`,
+  };
+
+  // Cache images by ad type so same type reuses same image
+  const imageCache = {};
+
+  await Promise.allSettled(
+    ads.map(async (ad) => {
+      if (imageCache[ad.type] !== undefined) return;
+      imageCache[ad.type] = null; // mark as fetching
+
+      const query = queryMap[ad.type] || `hotel ${city}`;
+      try {
+        const res = await axios.get("https://api.unsplash.com/search/photos", {
+          params:  { query, per_page: 1, orientation: "landscape" },
+          headers: { Authorization: `Client-ID ${UNSPLASH_KEY}` },
+          timeout: 5000,
+        });
+        const photo = res.data.results?.[0];
+        if (photo) {
+          imageCache[ad.type] = {
+            url:          photo.urls.regular,
+            small:        photo.urls.small,
+            photographer: photo.user.name,
+          };
+        }
+      } catch (err) {
+        console.log("⚠️ Unsplash error for", ad.type, ":", err.message);
+      }
+    })
+  );
+
+  return ads.map(ad => ({
+    ...ad,
+    imageUrl:          imageCache[ad.type]?.small || imageCache[ad.type]?.url || null,
+    imagePhotographer: imageCache[ad.type]?.photographer || null,
+  }));
+}
+
+// ── POST /api/guest/lookup ────────────────────────────────────
 router.post("/lookup", async (req, res) => {
   const { name, email } = req.body;
   if (!name || !email) return res.status(400).json({ error: "Name and email are required" });
@@ -18,14 +76,27 @@ router.post("/lookup", async (req, res) => {
     // Step 1: Search + metadata extraction
     const { found, scrapedData, snippets, metadata } = await searchGuest(email, name);
 
-    // Step 2: NLP Analysis (pass metadata for boosted scoring)
+    // Step 2: NLP Analysis
     const allText  = [...snippets, ...Object.values(scrapedData)];
     const analysis = analyzeText(
       allText.length > 0 ? allText : [name, emailLocal],
       metadata
     );
 
-    // Step 3: Save guest to DB
+    // Step 3: Enrich ad recommendations with Unsplash images
+    const enrichedAds = await enrichAdsWithImages(
+      Array.isArray(analysis.adRecommendations) ? analysis.adRecommendations : [],
+      metadata
+    );
+    analysis.adRecommendations = enrichedAds;
+
+    // Step 4: Get hotel recommendations
+    const hotelRecommendations = await getHotelRecommendations(
+      metadata?.location   || "Bengaluru",
+      analysis.personaKey  || "business"
+    );
+
+    // Step 5: Save guest to DB
     let guestId;
     const existing = await pool.query("SELECT id FROM guests WHERE email_hash = $1", [emailHash]);
     if (existing.rows.length > 0) {
@@ -57,7 +128,7 @@ router.post("/lookup", async (req, res) => {
       );
     }
 
-    // Save analysis + metadata as JSON in staff_note column (or dedicated column)
+    // Save analysis
     await pool.query("DELETE FROM guest_analysis WHERE guest_id=$1", [guestId]);
     await pool.query(
       `INSERT INTO guest_analysis
@@ -69,31 +140,34 @@ router.post("/lookup", async (req, res) => {
       [
         guestId,
         analysis.persona,
-        analysis.scores.luxury,    analysis.scores.business,
-        analysis.scores.leisure,   analysis.scores.adventure,
-        analysis.scores.family,    analysis.scores.food,
-        analysis.scores.tech,      analysis.scores.eco,
-        analysis.scores.arts,      analysis.scores.sports,
+        analysis.scores.luxury,   analysis.scores.business,
+        analysis.scores.leisure,  analysis.scores.adventure,
+        analysis.scores.family,   analysis.scores.food,
+        analysis.scores.tech,     analysis.scores.eco,
+        analysis.scores.arts,     analysis.scores.sports,
         analysis.sentimentScore,
         analysis.keywords.join(","),
         analysis.dataQuality,
         analysis.snippetsCount,
         analysis.roomRecommendation,
         analysis.personalizedOffer,
-        // store metadata as JSON inside staff_note field
-        analysis.staffNote + " ||METADATA|| " + JSON.stringify(metadata),
+        analysis.staffNote + " ||METADATA|| " + JSON.stringify({
+          ...metadata,
+          adRecommendations: enrichedAds,
+        }),
       ]
     );
 
-    // ── Full response including metadata ────────────────────
+    // ── Response ─────────────────────────────────────────────
     res.json({
-      success: true,
+      success:            true,
       guestId,
-      guest: { name, email, emailLocal, emailDomain },
-      profiles:         found,
-      scrapedPlatforms: Object.keys(scrapedData),
-      metadata,           // ← NEW: age, salary, location, lifestyle, etc.
+      guest:              { name, email, emailLocal, emailDomain },
+      profiles:           found,
+      scrapedPlatforms:   Object.keys(scrapedData),
+      metadata,
       analysis,
+      hotelRecommendations,
     });
 
   } catch (err) {
@@ -102,7 +176,7 @@ router.post("/lookup", async (req, res) => {
   }
 });
 
-// ── GET /api/guest/all ───────────────────────────────────────
+// ── GET /api/guest/all ────────────────────────────────────────
 router.get("/all", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -121,7 +195,7 @@ router.get("/all", async (req, res) => {
   }
 });
 
-// ── GET /api/guest/:id ───────────────────────────────────────
+// ── GET /api/guest/:id ────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const { id }   = req.params;
@@ -132,12 +206,15 @@ router.get("/:id", async (req, res) => {
       "SELECT platform, word_count, scraped_at FROM scraped_data WHERE guest_id=$1", [id]
     );
 
-    // Parse metadata back out of staff_note if stored there
-    let parsedMetadata = null;
+    let parsedMetadata          = null;
+    let parsedAdRecommendations = [];
     if (analysis.rows[0]?.staff_note?.includes("||METADATA||")) {
       try {
-        const parts    = analysis.rows[0].staff_note.split("||METADATA||");
-        parsedMetadata = JSON.parse(parts[1]);
+        const parts  = analysis.rows[0].staff_note.split("||METADATA||");
+        const parsed = JSON.parse(parts[1]);
+        parsedAdRecommendations     = parsed.adRecommendations || [];
+        delete parsed.adRecommendations;
+        parsedMetadata              = parsed;
         analysis.rows[0].staff_note = parts[0].trim();
       } catch {}
     }
@@ -145,8 +222,12 @@ router.get("/:id", async (req, res) => {
     res.json({
       guest:    guest.rows[0],
       profiles: profiles.rows,
-      analysis: { ...analysis.rows[0], metadata: parsedMetadata },
-      scraped:  scraped.rows,
+      analysis: {
+        ...analysis.rows[0],
+        metadata:          parsedMetadata,
+        adRecommendations: parsedAdRecommendations,
+      },
+      scraped: scraped.rows,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

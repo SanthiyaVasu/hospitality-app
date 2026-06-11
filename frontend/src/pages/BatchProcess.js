@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from "react";
 import axios from "axios";
 
-const API = "http://localhost:5000";
+const API = "https://hospitality-backend-w17q.onrender.com";
 function PageHeader({ title, subtitle }) {
   return (
     <div style={{ padding: "36px 40px 24px", borderBottom: "1px solid #D0D7DE", background: "#fff" }}>

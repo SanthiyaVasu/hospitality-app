@@ -1,98 +1,67 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:5000";
-function PageHeader({ title, subtitle }) {
-  return (
-    <div
-      style={{
-        padding: "36px 40px 24px",
-        borderBottom: "1px solid #D0D7DE",
-        background: "#fff",
-      }}
-    >
-      <h1
-        style={{
-          fontFamily: "'DM Serif Display', serif",
-          fontSize: 26,
-          color: "#0D1117",
-          marginBottom: 4,
-        }}
-      >
-        {title}
-      </h1>
+const API = "https://hospitality-backend-w17q.onrender.com";
+// ── Pre-fill from QR code URL params ─────────────────────────
+const params       = new URLSearchParams(window.location.search);
+const prefillName  = params.get("name")  || "";
+const prefillEmail = params.get("email") || "";
 
-      <p style={{ color: "#57606A", fontSize: 14 }}>{subtitle}</p>
+// ── Styles ────────────────────────────────────────────────────
+const C = {
+  bg:      "#F5F4F0", surface: "#FFFFFF", border: "#E2E0DA",
+  text:    "#1C1917", textMid: "#57534E", textMute: "#A8A29E",
+  fill:    "#1C1917", tag: "#F0EEE9", tagBorder: "#DDD9D3",
+  divider: "#EDEBE5", inputBg: "#FAFAF8",
+};
+
+const AMENITIES = [
+  "Spa","Pool","Gym","Business Center","Restaurant",
+  "Bar","Concierge","Room Service","Parking",
+  "Pet Friendly","Kids Club","Airport Shuttle",
+];
+
+const ACTIVITIES = [
+  "City Tour","Cooking Class","Adventure Sports",
+  "Cultural Experience","Beach Activities","Wildlife Safari",
+  "Wine Tasting","Yoga / Wellness","Shopping",
+  "Nightlife","Photography Tour","Nature Walk",
+];
+
+// ── Reusable components ───────────────────────────────────────
+function SectionCard({ title, children }) {
+  return (
+    <div style={{ background:C.surface, borderRadius:10, border:`1px solid ${C.border}`, padding:"22px 26px", marginBottom:16 }}>
+      <div style={{ fontSize:10, fontWeight:700, color:C.textMid, textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:18, paddingBottom:12, borderBottom:`1px solid ${C.divider}` }}>
+        {title}
+      </div>
+      {children}
     </div>
   );
 }
 
 function Label({ children }) {
   return (
-    <label
-      style={{
-        display: "block",
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#0D1117",
-        marginBottom: 6,
-        textTransform: "uppercase",
-        letterSpacing: 0.5,
-      }}
-    >
+    <label style={{ display:"block", fontSize:10, fontWeight:700, color:C.textMid, marginBottom:5, textTransform:"uppercase", letterSpacing:"0.07em" }}>
       {children}
     </label>
   );
 }
 
-function Input({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}) {
+function Input({ ...props }) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      style={{
-        width: "100%",
-        padding: "10px 14px",
-        borderRadius: 8,
-        fontSize: 14,
-        border: "1.5px solid #D0D7DE",
-        outline: "none",
-        color: "#0D1117",
-        fontFamily: "'DM Sans', sans-serif",
-        background: "#fff",
-      }}
-      onFocus={(e) => (e.target.style.borderColor = "#B8860B")}
-      onBlur={(e) => (e.target.style.borderColor = "#D0D7DE")}
+    <input {...props} style={{ width:"100%", padding:"10px 13px", borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, outline:"none", color:C.text, background:C.inputBg, fontFamily:"inherit", boxSizing:"border-box", transition:"all 0.15s" }}
+      onFocus={e=>{ e.target.style.borderColor=C.text; e.target.style.background=C.surface; }}
+      onBlur={e=> { e.target.style.borderColor=C.border; e.target.style.background=C.inputBg; }}
     />
   );
 }
 
-function Select({ value, onChange, children }) {
+function SelectInput({ children, ...props }) {
   return (
-    <select
-      value={value}
-      onChange={onChange}
-      style={{
-        width: "100%",
-        padding: "10px 14px",
-        borderRadius: 8,
-        fontSize: 14,
-        border: "1.5px solid #D0D7DE",
-        outline: "none",
-        color: value ? "#0D1117" : "#8B949E",
-        fontFamily: "'DM Sans', sans-serif",
-        background: "#fff",
-        cursor: "pointer",
-      }}
-      onFocus={(e) => (e.target.style.borderColor = "#B8860B")}
-      onBlur={(e) => (e.target.style.borderColor = "#D0D7DE")}
+    <select {...props} style={{ width:"100%", padding:"10px 13px", borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, outline:"none", color:C.text, background:C.inputBg, fontFamily:"inherit", boxSizing:"border-box", cursor:"pointer", transition:"all 0.15s" }}
+      onFocus={e=>{ e.target.style.borderColor=C.text; }}
+      onBlur={e=> { e.target.style.borderColor=C.border; }}
     >
       {children}
     </select>
@@ -100,732 +69,248 @@ function Select({ value, onChange, children }) {
 }
 
 function MultiSelect({ options, selected, onChange }) {
-  const toggle = (val) => {
-    if (selected.includes(val)) {
-      onChange(selected.filter((v) => v !== val));
-    } else {
-      onChange([...selected, val]);
-    }
-  };
-
+  const toggle = (val) => onChange(
+    selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]
+  );
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => toggle(opt)}
-          style={{
-            padding: "6px 14px",
-            borderRadius: 20,
-            fontSize: 12,
-            fontWeight: 500,
-            border: selected.includes(opt)
-              ? "none"
-              : "1.5px solid #D0D7DE",
-            background: selected.includes(opt)
-              ? "linear-gradient(135deg, #B8860B, #D4A017)"
-              : "#fff",
-            color: selected.includes(opt)
-              ? "#fff"
-              : "#57606A",
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
-        >
-          {opt}
-        </button>
-      ))}
+    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+      {options.map(opt => {
+        const active = selected.includes(opt);
+        return (
+          <button key={opt} type="button" onClick={() => toggle(opt)}
+            style={{ padding:"6px 13px", borderRadius:5, fontSize:12, fontWeight:500, border:`1px solid ${active ? C.text : C.border}`, background: active ? C.text : C.bg, color: active ? "#fff" : C.textMid, cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>
+            {opt}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function SectionTitle({ children }) {
-  return (
-    <div
-      style={{
-        fontFamily: "'DM Serif Display', serif",
-        fontSize: 17,
-        color: "#0D1117",
-        paddingBottom: 12,
-        borderBottom: "1px solid #E8ECF0",
-        marginBottom: 20,
-      }}
-    >
-      {children}
-    </div>
-  );
+function Grid2({ children }) {
+  return <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>{children}</div>;
 }
 
-const AMENITIES = [
-  "Spa",
-  "Pool",
-  "Gym",
-  "Business Center",
-  "Restaurant",
-  "Bar",
-  "Concierge",
-  "Room Service",
-  "Parking",
-  "Pet Friendly",
-  "Kids Club",
-  "Airport Shuttle",
-];
+function Grid3({ children }) {
+  return <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16 }}>{children}</div>;
+}
 
-const ACTIVITIES = [
-  "City Tour",
-  "Cooking Class",
-  "Adventure Sports",
-  "Cultural Experience",
-  "Beach Activities",
-  "Wildlife Safari",
-  "Wine Tasting",
-  "Yoga / Wellness",
-  "Shopping",
-  "Nightlife",
-  "Photography Tour",
-  "Nature Walk",
-];
-
+// ── Main Component ────────────────────────────────────────────
 export default function PreferenceForm() {
   const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    nationality: "",
-    room_type: "",
-    bed_type: "",
+    name:             prefillName,
+    email:            prefillEmail,
+    phone:            "",
+    nationality:      "",
+    room_type:        "",
+    bed_type:         "",
     floor_preference: "",
-    dietary: "",
-    budget_range: "",
-    stay_purpose: "",
-    loyalty_member: false,
-    loyalty_number: "",
+    dietary:          "",
+    budget_range:     "",
+    stay_purpose:     "",
+    loyalty_member:   false,
+    loyalty_number:   "",
     special_requests: "",
-    amenities: [],
-    activities: [],
+    amenities:        [],
+    activities:       [],
   });
 
   const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
 
-  const set = (field) => (e) =>
-    setForm((f) => ({
-      ...f,
-      [field]: e.target.value,
-    }));
+  const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setE = (k)    => (e) => set(k, e.target.value);
 
   async function handleSubmit(e) {
     e.preventDefault();
-
-    if (!form.name || !form.email) return;
-
-    setLoading(true);
-    setError("");
-
+    if (!form.name || !form.email) { setError("Name and email are required"); return; }
+    setLoading(true); setError("");
     try {
-      await axios.post(
-        `${API}/api/preference/submit`,
-        form
-      );
-
+      await axios.post(`${API}/api/preference/submit`, form);
       setSubmitted(true);
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          "Submission failed"
-      );
-    } finally {
-      setLoading(false);
-    }
+      setError(err.response?.data?.error || "Submission failed. Please try again.");
+    } finally { setLoading(false); }
   }
 
+  // ── Success Screen ────────────────────────────────────────
   if (submitted) {
     return (
-      <div>
-        <PageHeader
-          title="Guest Preferences"
-          subtitle="Tell us what you prefer for the best experience."
-        />
-
-        <div
-          style={{
-            padding: "80px 40px",
-            textAlign: "center",
-            animation: "fadeIn 0.4s ease",
-          }}
-        >
-          <div style={{ fontSize: 64, marginBottom: 20 }}>
-            🏨
+      <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", padding:20 }}>
+        <div style={{ background:C.surface, borderRadius:16, border:`1px solid ${C.border}`, padding:"48px 40px", textAlign:"center", maxWidth:440, width:"100%" }}>
+          <div style={{ width:56, height:56, borderRadius:"50%", background:C.tag, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
           </div>
-
-          <div
-            style={{
-              fontFamily: "'DM Serif Display', serif",
-              fontSize: 28,
-              color: "#0D1117",
-              marginBottom: 8,
-            }}
-          >
+          <h2 style={{ fontSize:20, fontWeight:700, color:C.text, marginBottom:10, letterSpacing:"-0.2px" }}>
             Thank You, {form.name}!
-          </div>
-
-          <div
-            style={{
-              fontSize: 15,
-              color: "#57606A",
-              maxWidth: 400,
-              margin: "0 auto 32px",
-            }}
-          >
-            Your preferences have been saved.
-            Our team will ensure your stay is
-            perfectly tailored for you.
-          </div>
-
-          <button
-            onClick={() => {
-              setSubmitted(false);
-
-              setForm({
-                name: "",
-                email: "",
-                phone: "",
-                nationality: "",
-                room_type: "",
-                bed_type: "",
-                floor_preference: "",
-                dietary: "",
-                budget_range: "",
-                stay_purpose: "",
-                loyalty_member: false,
-                loyalty_number: "",
-                special_requests: "",
-                amenities: [],
-                activities: [],
-              });
-            }}
-            style={{
-              padding: "12px 28px",
-              borderRadius: 10,
-              border: "none",
-              background:
-                "linear-gradient(135deg, #B8860B, #D4A017)",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-          >
-            Submit Another Response
-          </button>
+          </h2>
+          <p style={{ fontSize:13, color:C.textMid, lineHeight:1.7, marginBottom:6 }}>
+            Your preferences have been saved successfully.
+          </p>
+          <p style={{ fontSize:12, color:C.textMute, lineHeight:1.6 }}>
+            Our team will personalise your stay based on your preferences. We look forward to welcoming you!
+          </p>
         </div>
       </div>
     );
   }
 
+  // ── Form ──────────────────────────────────────────────────
   return (
-    <div>
-      <PageHeader
-        title="Guest Preference Form"
-        subtitle="Help us personalise your stay by sharing your preferences. All fields are optional except Name and Email."
-      />
+    <div style={{ fontFamily:"'DM Sans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
 
-      <div style={{ padding: "32px 40px" }}>
+      {/* Header */}
+      <div style={{ padding:"26px 40px 20px", borderBottom:`1px solid ${C.border}`, background:C.surface }}>
+        <h1 style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:"-0.3px", marginBottom:3 }}>Guest Preference Form</h1>
+        <p style={{ color:C.textMid, fontSize:13 }}>Help us personalise your stay. Name and email are required — all other fields are optional.</p>
+      </div>
+
+      <div style={{ padding:"24px 40px", maxWidth:780, margin:"0 auto" }}>
         <form onSubmit={handleSubmit}>
-          {/* Personal Details */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <SectionTitle>
-              Personal Details
-            </SectionTitle>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 20,
-              }}
-            >
+          {/* Personal Details */}
+          <SectionCard title="Personal Details">
+            <Grid2>
               <div>
                 <Label>Full Name *</Label>
-
-                <Input
-                  value={form.name}
-                  onChange={set("name")}
-                  placeholder="Your full name"
-                />
+                <Input value={form.name} onChange={setE("name")} placeholder="Your full name" required />
               </div>
-
               <div>
                 <Label>Email Address *</Label>
-
-                <Input
-                  value={form.email}
-                  onChange={set("email")}
-                  placeholder="your@email.com"
-                  type="email"
-                />
+                <Input type="email" value={form.email} onChange={setE("email")} placeholder="your@email.com" required />
               </div>
-
               <div>
                 <Label>Phone Number</Label>
-
-                <Input
-                  value={form.phone}
-                  onChange={set("phone")}
-                  placeholder="+91 98765 43210"
-                />
+                <Input value={form.phone} onChange={setE("phone")} placeholder="+91 98765 43210" />
               </div>
-
               <div>
                 <Label>Nationality</Label>
-
-                <Input
-                  value={form.nationality}
-                  onChange={set("nationality")}
-                  placeholder="e.g. Indian"
-                />
+                <Input value={form.nationality} onChange={setE("nationality")} placeholder="e.g. Indian" />
               </div>
-            </div>
-          </div>
+            </Grid2>
+          </SectionCard>
 
           {/* Room Preferences */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <SectionTitle>
-              Room Preferences
-            </SectionTitle>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 20,
-              }}
-            >
+          <SectionCard title="Room Preferences">
+            <Grid3>
               <div>
                 <Label>Room Type</Label>
-
-                <Select
-                  value={form.room_type}
-                  onChange={set("room_type")}
-                >
-                  <option value="">
-                    Select room type
-                  </option>
-
-                  {[
-                    "Standard",
-                    "Deluxe",
-                    "Superior",
-                    "Suite",
-                    "Penthouse",
-                    "Villa",
-                    "Family Room",
-                  ].map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </Select>
+                <SelectInput value={form.room_type} onChange={setE("room_type")}>
+                  <option value="">Select room type</option>
+                  {["Standard","Deluxe","Superior","Suite","Penthouse","Villa","Family Room"].map(o=><option key={o}>{o}</option>)}
+                </SelectInput>
               </div>
-
               <div>
                 <Label>Bed Type</Label>
-
-                <Select
-                  value={form.bed_type}
-                  onChange={set("bed_type")}
-                >
-                  <option value="">
-                    Select bed type
-                  </option>
-
-                  {[
-                    "King",
-                    "Queen",
-                    "Twin",
-                    "Single",
-                    "Double",
-                    "Bunk",
-                  ].map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </Select>
+                <SelectInput value={form.bed_type} onChange={setE("bed_type")}>
+                  <option value="">Select bed type</option>
+                  {["King","Queen","Twin","Single","Double","Bunk"].map(o=><option key={o}>{o}</option>)}
+                </SelectInput>
               </div>
-
               <div>
                 <Label>Floor Preference</Label>
-
-                <Select
-                  value={form.floor_preference}
-                  onChange={set("floor_preference")}
-                >
-                  <option value="">
-                    No preference
-                  </option>
-
-                  {[
-                    "Low Floor (1-5)",
-                    "Mid Floor (6-15)",
-                    "High Floor (16+)",
-                    "Top Floor",
-                  ].map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </Select>
+                <SelectInput value={form.floor_preference} onChange={setE("floor_preference")}>
+                  <option value="">No preference</option>
+                  {["Low Floor (1–5)","Mid Floor (6–15)","High Floor (16+)","Top Floor"].map(o=><option key={o}>{o}</option>)}
+                </SelectInput>
               </div>
-            </div>
-          </div>
+            </Grid3>
+          </SectionCard>
 
-          {/* Dining & Lifestyle */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <SectionTitle>
-              Dining & Lifestyle
-            </SectionTitle>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 20,
-              }}
-            >
+          {/* Dining & Budget */}
+          <SectionCard title="Dining & Budget">
+            <Grid2>
               <div>
-                <Label>
-                  Dietary Requirements
-                </Label>
-
-                <Select
-                  value={form.dietary}
-                  onChange={set("dietary")}
-                >
-                  <option value="">
-                    No restriction
-                  </option>
-
-                  {[
-                    "Vegetarian",
-                    "Vegan",
-                    "Halal",
-                    "Kosher",
-                    "Gluten-Free",
-                    "Nut Allergy",
-                    "Dairy-Free",
-                  ].map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </Select>
+                <Label>Dietary Requirements</Label>
+                <SelectInput value={form.dietary} onChange={setE("dietary")}>
+                  <option value="">No restriction</option>
+                  {["Vegetarian","Vegan","Halal","Kosher","Gluten-Free","Nut Allergy","Dairy-Free","Jain"].map(o=><option key={o}>{o}</option>)}
+                </SelectInput>
               </div>
-
               <div>
                 <Label>Budget Range</Label>
-
-                <Select
-                  value={form.budget_range}
-                  onChange={set("budget_range")}
-                >
-                  <option value="">
-                    Select budget
-                  </option>
-
-                  {[
-                    "Economy (₹2K-5K/night)",
-                    "Mid-range (₹5K-15K/night)",
-                    "Premium (₹15K-40K/night)",
-                    "Luxury (₹40K+/night)",
-                  ].map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </Select>
+                <SelectInput value={form.budget_range} onChange={setE("budget_range")}>
+                  <option value="">Select budget</option>
+                  {["Economy (₹2K–5K/night)","Mid-Range (₹5K–15K/night)","Premium (₹15K–40K/night)","Luxury (₹40K+/night)"].map(o=><option key={o}>{o}</option>)}
+                </SelectInput>
               </div>
-            </div>
-          </div>
+            </Grid2>
+          </SectionCard>
 
-          {/* Amenities */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <SectionTitle>
-              Preferred Amenities
-            </SectionTitle>
+          {/* Preferred Amenities */}
+          <SectionCard title="Preferred Amenities">
+            <MultiSelect options={AMENITIES} selected={form.amenities} onChange={v=>set("amenities",v)} />
+          </SectionCard>
 
-            <MultiSelect
-              options={AMENITIES}
-              selected={form.amenities}
-              onChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  amenities: v,
-                }))
-              }
-            />
-          </div>
+          {/* Preferred Activities */}
+          <SectionCard title="Preferred Activities">
+            <MultiSelect options={ACTIVITIES} selected={form.activities} onChange={v=>set("activities",v)} />
+          </SectionCard>
 
-          {/* Activities */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <SectionTitle>
-              Preferred Activities
-            </SectionTitle>
-
-            <MultiSelect
-              options={ACTIVITIES}
-              selected={form.activities}
-              onChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  activities: v,
-                }))
-              }
-            />
-          </div>
-
-          {/* Stay Purpose */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <SectionTitle>
-              Stay Purpose & Loyalty
-            </SectionTitle>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 20,
-                marginBottom: 20,
-              }}
-            >
+          {/* Stay Purpose & Loyalty */}
+          <SectionCard title="Stay Purpose & Loyalty">
+            <Grid2>
               <div>
                 <Label>Purpose of Stay</Label>
-
-                <Select
-                  value={form.stay_purpose}
-                  onChange={set("stay_purpose")}
-                >
-                  <option value="">
-                    Select purpose
-                  </option>
-
-                  {[
-                    "Leisure / Vacation",
-                    "Business",
-                    "Honeymoon",
-                    "Anniversary",
-                    "Family Trip",
-                    "Medical",
-                    "Education",
-                  ].map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </Select>
+                <SelectInput value={form.stay_purpose} onChange={setE("stay_purpose")}>
+                  <option value="">Select purpose</option>
+                  {["Leisure / Vacation","Business","Honeymoon","Anniversary","Family Trip","Medical","Education"].map(o=><option key={o}>{o}</option>)}
+                </SelectInput>
               </div>
-
               <div>
-                <Label>
-                  Loyalty Member?
-                </Label>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    marginTop: 2,
-                  }}
-                >
-                  {[
-                    ["Yes", true],
-                    ["No", false],
-                  ].map(([label, val]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          loyalty_member: val,
-                        }))
-                      }
-                      style={{
-                        flex: 1,
-                        padding: "10px",
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        border: "1.5px solid",
-                        borderColor:
-                          form.loyalty_member === val
-                            ? "#B8860B"
-                            : "#D0D7DE",
-                        background:
-                          form.loyalty_member === val
-                            ? "#FEF3C7"
-                            : "#fff",
-                        color:
-                          form.loyalty_member === val
-                            ? "#92400E"
-                            : "#57606A",
-                        cursor: "pointer",
-                      }}
-                    >
+                <Label>Loyalty Member?</Label>
+                <div style={{ display:"flex", gap:10, marginTop:2 }}>
+                  {[["Yes", true],["No", false]].map(([label, val]) => (
+                    <button key={label} type="button"
+                      onClick={() => set("loyalty_member", val)}
+                      style={{ flex:1, padding:"10px", borderRadius:7, fontSize:13, fontWeight:600, border:`1px solid ${form.loyalty_member === val ? C.text : C.border}`, background: form.loyalty_member === val ? C.text : C.bg, color: form.loyalty_member === val ? "#fff" : C.textMid, cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>
                       {label}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
-
+            </Grid2>
             {form.loyalty_member && (
-              <div>
-                <Label>
-                  Loyalty / Membership Number
-                </Label>
-
-                <Input
-                  value={form.loyalty_number}
-                  onChange={set("loyalty_number")}
-                  placeholder="e.g. HI-123456"
-                />
+              <div style={{ marginTop:16 }}>
+                <Label>Loyalty / Membership Number</Label>
+                <Input value={form.loyalty_number} onChange={setE("loyalty_number")} placeholder="e.g. HI-123456" />
               </div>
             )}
-          </div>
+          </SectionCard>
 
           {/* Special Requests */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #D0D7DE",
-              padding: "28px 32px",
-              marginBottom: 28,
-            }}
-          >
-            <SectionTitle>
-              Special Requests
-            </SectionTitle>
-
+          <SectionCard title="Special Requests">
             <textarea
               value={form.special_requests}
-              onChange={set("special_requests")}
-              placeholder="Any special requests, requirements, or notes for our team..."
+              onChange={setE("special_requests")}
+              placeholder="Any special requests, requirements, celebrations, or accessibility needs..."
               rows={4}
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                borderRadius: 8,
-                fontSize: 14,
-                border: "1.5px solid #D0D7DE",
-                outline: "none",
-                color: "#0D1117",
-                fontFamily: "'DM Sans', sans-serif",
-                resize: "vertical",
-                lineHeight: 1.6,
-              }}
-              onFocus={(e) =>
-                (e.target.style.borderColor =
-                  "#B8860B")
-              }
-              onBlur={(e) =>
-                (e.target.style.borderColor =
-                  "#D0D7DE")
-              }
+              style={{ width:"100%", padding:"10px 13px", borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, outline:"none", color:C.text, background:C.inputBg, fontFamily:"inherit", boxSizing:"border-box", resize:"vertical", lineHeight:1.6, transition:"all 0.15s" }}
+              onFocus={e=>{ e.target.style.borderColor=C.text; e.target.style.background=C.surface; }}
+              onBlur={e=> { e.target.style.borderColor=C.border; e.target.style.background=C.inputBg; }}
             />
-          </div>
+          </SectionCard>
 
           {/* Error */}
           {error && (
-            <div
-              style={{
-                padding: 14,
-                background: "#FEE2E2",
-                border: "1px solid #FECACA",
-                borderRadius: 10,
-                color: "#991B1B",
-                fontSize: 13,
-                marginBottom: 20,
-              }}
-            >
-              ⚠️ {error}
+            <div style={{ padding:"11px 14px", background:"#FEF2F2", border:"1px solid #FECACA", borderRadius:8, color:"#DC2626", fontSize:13, marginBottom:16 }}>
+              {error}
             </div>
           )}
 
           {/* Submit */}
-          <button
-            type="submit"
-            disabled={
-              loading ||
-              !form.name ||
-              !form.email
-            }
-            style={{
-              width: "100%",
-              padding: "14px",
-              borderRadius: 12,
-              border: "none",
-              background: loading
-                ? "#D0D7DE"
-                : "linear-gradient(135deg, #B8860B, #D4A017)",
-              color: loading
-                ? "#8B949E"
-                : "#fff",
-              fontSize: 16,
-              fontWeight: 700,
-              cursor: loading
-                ? "not-allowed"
-                : "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-              letterSpacing: 0.3,
-            }}
-          >
-            {loading
-              ? "Saving Preferences..."
-              : "✓ Submit Preferences"}
+          <button type="submit" disabled={loading || !form.name || !form.email}
+            style={{ width:"100%", padding:"13px", borderRadius:8, border:"none", background: (loading || !form.name || !form.email) ? "#C8C5BC" : C.fill, color:"#fff", fontSize:14, fontWeight:700, cursor:(loading||!form.name||!form.email)?"not-allowed":"pointer", fontFamily:"inherit", letterSpacing:"0.02em", transition:"all 0.15s" }}>
+            {loading ? "Saving Preferences..." : "Submit Preferences"}
           </button>
+
         </form>
       </div>
+
+      <style>{`* { box-sizing: border-box; margin:0; padding:0; }`}</style>
     </div>
   );
 }
