@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
+const cors    = require("cors");
 
 const guestRoutes      = require("./routes/guest");
 const batchRoutes      = require("./routes/batch");
@@ -17,9 +17,10 @@ app.use(cors({
     "https://hospitality-app-39zz.onrender.com",
     "https://hospitality-frontend.onrender.com",
     "https://hospitality-frontend-app.onrender.com",
+    "https://hospitality-frontend-d1zw.onrender.com",   // ← YOUR ACTUAL URL
     process.env.FRONTEND_URL,
   ].filter(Boolean),
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods:     ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
 }));
 
