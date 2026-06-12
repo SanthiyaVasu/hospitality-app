@@ -143,15 +143,15 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
 
     try {
       await axios.post(`${API}/api/email/send-ad`, {
-        guestName,
-        guestEmail,
-        persona,
-        variantLabel:  labels[selected].title,
-        svgString,
-        formUrl,
-        offer:         analysis?.personalizedOffer || "",
-        roomRec:       analysis?.roomRecommendation || "",
-      });
+  guestName,
+  guestEmail,
+  persona,
+  variantLabel:  labels[selected].title,
+  svgString,
+  formUrl,
+  offer:         analysis?.personalizedOffer || "",
+  roomRec:       analysis?.roomRecommendation || "",
+}, { timeout: 30000 }); // 30 seconds timeout
       setSendStatus("success");
       setSendMsg("Email sent successfully to " + guestEmail);
     } catch (err) {
