@@ -6,6 +6,7 @@ const guestRoutes      = require("./routes/guest");
 const batchRoutes      = require("./routes/batch");
 const preferenceRoutes = require("./routes/preference");
 const dbRoutes         = require("./routes/db");
+const emailRoutes      = require("./routes/email");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -32,6 +33,7 @@ app.use("/api/guest",      guestRoutes);
 app.use("/api/batch",      batchRoutes);
 app.use("/api/preference", preferenceRoutes);
 app.use("/api/db",         dbRoutes);
+app.use("/api/email",      emailRoutes);
 
 const emailRoutes = require("./routes/email");
 app.use("/api/email", emailRoutes);
