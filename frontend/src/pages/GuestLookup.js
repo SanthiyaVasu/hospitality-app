@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:5000";
-
+const API = "https://hospitality-backend-w17q.onrender.com";
 const C = {
   bg:        "#F5F4F0",
   surface:   "#FFFFFF",
