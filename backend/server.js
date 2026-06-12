@@ -35,9 +35,6 @@ app.use("/api/preference", preferenceRoutes);
 app.use("/api/db",         dbRoutes);
 app.use("/api/email",      emailRoutes);
 
-const emailRoutes = require("./routes/email");
-app.use("/api/email", emailRoutes);
-
 // ── Health Check ─────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
