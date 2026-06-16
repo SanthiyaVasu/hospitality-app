@@ -50,3 +50,6 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`\n🏨 Hospitality Intelligence Server running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
 });
+
+const emailRoutes = require("./routes/email");
+app.use("/api/email", emailRoutes);
