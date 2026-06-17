@@ -293,7 +293,10 @@ function analyzeText(textArray, metadata = null) {
     if (lifestyle.includes("Family Oriented"))    scores.family    = (scores.family    || 0) + 15;
     if (lifestyle.includes("Social Influencer"))  scores.leisure   = (scores.leisure   || 0) + 10;
 
-    if (!lifestyle.includes("Tech Enthusiast")) scores.tech = Math.min(scores.tech || 0, 3);
+    scores.tech = 0;
+if (lifestyle.includes("Tech Enthusiast")) {
+  scores.tech = 15;
+}
   }
 
   const maxScore   = Math.max(...Object.values(scores), 1);
