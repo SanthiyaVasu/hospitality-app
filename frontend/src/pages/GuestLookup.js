@@ -388,6 +388,25 @@ export default function GuestLookup() {
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState("");
   const [step,    setStep]    = useState("");
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true); setError(""); setResult(null); setStep(STEPS[0]);
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+      stepIdx = Math.min(stepIdx + 1, STEPS.length - 1);
+      setStep(STEPS[stepIdx]);
+    }, 2200);
+    try {
+      const { data } = await axios.post(`${API}/api/guest/lookup`, { name: form.name, email: form.email });
+      setResult(data);
+    } catch (err) {
+      setError(err.response?.data?.error || "Something went wrong. Please try again.");
+    } finally {
+      clearInterval(stepTimer);
+      setLoading(false);
+      setStep("");
+    }
+  }
 
   const STEPS = [
     "Searching email across platforms...",
@@ -409,7 +428,7 @@ export default function GuestLookup() {
         2: "Room Recommendation",
         3: "Exclusive Deal",
       };
-
+      
       const personaKey = (persona||"").toLowerCase().replace(" traveler","").trim();
       const themes = {
         luxury:   {bg1:"#1a1208",bg2:"#3d2b0e",accent:"#c9a84c"},
