@@ -548,12 +548,31 @@ async function searchGuest(email, name) {
   await Promise.allSettled(scrapePromises);
 
   // STEP 5 — Build metadata
-  const allText       = [...allSnippets, ...Object.values(scrapedData)];
-  const ageData       = extractAge(allText);
-  const salaryData    = extractSalaryEstimate(allText);
-  const locationData  = extractLocation(allText);
+  const allText = [...allSnippets, ...Object.values(scrapedData)];
+
+  // Filter snippets to only those relevant to this specific guest
+  // (mentions their name, email domain, or company) — avoids picking up
+  // unrelated people/places from generic search results
+  const emailDomainRoot = email.split("@")[1]?.split(".")[0]?.toLowerCase() || "";
+  const nameWords       = (name || "").toLowerCase().split(" ").filter(p => p.length > 2);
+  const companyLower    = (apiMetadata?.company || "").toLowerCase();
+
+  const relevantText = allText.filter(s => {
+    const sl = s.toLowerCase();
+    if (emailDomainRoot.length > 3 && sl.includes(emailDomainRoot)) return true;
+    if (companyLower && companyLower.length > 2 && sl.includes(companyLower)) return true;
+    if (nameWords.length >= 2 && nameWords.every(p => sl.includes(p))) return true;
+    return false;
+  });
+
+  // Use relevant text when available, fall back to full text only if nothing relevant found
+  const textForExtraction = relevantText.length > 0 ? relevantText : allText;
+
+  const ageData       = extractAge(textForExtraction);
+  const salaryData    = extractSalaryEstimate(textForExtraction);
+  const locationData  = extractLocation(relevantText.length > 0 ? relevantText : []); // location: only trust relevant snippets, else Unknown
   const lifestyleData = extractLifestyle(allText);
-  const profData      = extractProfession(allText);
+  const profData      = extractProfession(textForExtraction);
 
   let metadata;
   if (apiMetadata) {
