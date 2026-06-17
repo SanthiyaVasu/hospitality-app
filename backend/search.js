@@ -574,18 +574,31 @@ async function searchGuest(email, name) {
     };
 
     // Fix salary from profession if missing
-    if (!apiMetadata.salary || apiMetadata.salary === "Unknown") {
-      const profSalMap = {
-        "CEO/Founder":       { salary: "₹40+ LPA",   src: "estimated from CEO/Founder title" },
-        "C-Suite Executive": { salary: "₹30–50 LPA", src: "estimated from C-Suite title" },
-        "VP/Director":       { salary: "₹25–40 LPA", src: "estimated from VP/Director title" },
-        "Senior Manager":    { salary: "₹20–35 LPA", src: "estimated from Senior Manager title" },
-        "Manager/Lead":      { salary: "₹12–22 LPA", src: "estimated from Manager title" },
-        "Software Engineer": { salary: "₹6–15 LPA",  src: "estimated from Software Engineer title" },
-        "Data/AI Engineer":  { salary: "₹8–20 LPA",  src: "estimated from Data/AI title" },
-      };
-      const mapped = profSalMap[metadata.profession];
-      if (mapped) { metadata.salary = mapped.salary; metadata.salarySource = mapped.src; }
+    // Fix salary from profession — match by keyword, not exact string
+    if (metadata.profession) {
+      const profLower = metadata.profession.toLowerCase();
+      let mapped = null;
+
+      if (profLower.includes("ceo") || profLower.includes("founder"))
+        mapped = { salary: "₹40+ LPA", src: "estimated from CEO/Founder title" };
+      else if (profLower.includes("cto") || profLower.includes("cfo") || profLower.includes("coo"))
+        mapped = { salary: "₹30–50 LPA", src: "estimated from C-Suite title" };
+      else if (profLower.includes("vp") || profLower.includes("director"))
+        mapped = { salary: "₹25–40 LPA", src: "estimated from VP/Director title" };
+      else if (profLower.includes("senior manager") || profLower.includes("principal"))
+        mapped = { salary: "₹20–35 LPA", src: "estimated from Senior Manager title" };
+      else if (profLower.includes("manager") || profLower.includes("lead"))
+        mapped = { salary: "₹12–22 LPA", src: "estimated from Manager title" };
+      else if (profLower.includes("software") || profLower.includes("developer"))
+        mapped = { salary: "₹6–15 LPA", src: "estimated from Software Engineer title" };
+      else if (profLower.includes("data") || profLower.includes("ai engineer"))
+        mapped = { salary: "₹8–20 LPA", src: "estimated from Data/AI Engineer title" };
+
+      if (mapped && (!metadata.salary || metadata.salary === "Unknown" || (metadata.salarySource || "").includes("entry level"))) {
+        metadata.salary       = mapped.salary;
+        metadata.salarySource = mapped.src;
+        console.log("Salary corrected:", metadata.profession, "→", mapped.salary);
+      }
     }
   } else {
     metadata = {
