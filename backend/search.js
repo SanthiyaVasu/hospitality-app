@@ -114,10 +114,16 @@ async function pdlSearch(email, name) {
       );
     }
 
-    if (!person && !isCommon && !isGeneric) person = results[0];
-    if (!person) return null;
+    if (!person && !isCommon && !isGeneric) {
+      person = results[0];
+      console.log("⚠️ PDL using risky fallback match (no exact/domain match found):", person?.full_name, "at", person?.job_company_name);
+    }
+    if (!person) {
+      console.log("PDL search: no reliable match for", email, "— skipping");
+      return null;
+    }
 
-    console.log("✅ PDL search found:", person.full_name, "|", person.job_title);
+    console.log("PDL matched via:", person.full_name, "|", person.job_title, "|", person.job_company_name);
     return parsePDLPerson(person);
   } catch (err) {
     console.log("⚠️ PDL search error:", err.message);
