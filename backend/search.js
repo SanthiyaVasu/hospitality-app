@@ -52,6 +52,7 @@ async function hunterLookup(email) {
 // ── PEOPLE DATA LABS ─────────────────────────────────────────
 async function pdlLookup(email, name) {
   if (!PDL_API_KEY) return null;
+  console.log("=== PDL LOOKUP DEBUG for:", email, "===");
   try {
     const res = await axios.get("https://api.peopledatalabs.com/v5/person/enrich", {
       params: { email, pretty: true },
@@ -59,6 +60,7 @@ async function pdlLookup(email, name) {
       timeout: 8000,
     });
     const d = res.data;
+    console.log("RAW PDL RESPONSE:", JSON.stringify(d, null, 2));
     if (!d || d.status !== 200) return await pdlSearch(email, name);
     console.log("✅ PDL enrichment found:", d.data?.full_name, d.data?.job_title);
     return parsePDLPerson(d.data || d);
