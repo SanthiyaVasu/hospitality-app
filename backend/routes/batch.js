@@ -1,11 +1,12 @@
 const express = require("express");
-const router = express.Router();
-const multer = require("multer");
+const router  = express.Router();
+const multer  = require("multer");
 const { parse } = require("csv-parse");
-const crypto = require("crypto");
-const pool = require("../db");
-const { searchGuest } = require("../search");
-const { analyzeText } = require("../nlp");
+const crypto  = require("crypto");
+const pool    = require("../db");
+const { searchGuest }             = require("../search");
+const { analyzeText }             = require("../nlp");
+const { getHotelRecommendations } = require("../hotelService");
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -16,34 +17,30 @@ const batchJobs = {};
 router.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const jobId = crypto.randomBytes(8).toString("hex");
-  const csvContent = req.file.buffer.toString("utf8");
+  const jobId       = crypto.randomBytes(8).toString("hex");
+  const csvContent  = req.file.buffer.toString("utf8");
 
-  // Parse CSV
   parse(csvContent, { columns: true, trim: true, skip_empty_lines: true }, async (err, records) => {
     if (err) return res.status(400).json({ error: "Invalid CSV format" });
 
     const guests = records.map((r) => ({
-      name: r.name || r.Name || r.NAME || "",
+      name:  r.name  || r.Name  || r.NAME  || "",
       email: r.email || r.Email || r.EMAIL || "",
     })).filter((g) => g.name && g.email);
 
     if (guests.length === 0) return res.status(400).json({ error: "No valid name/email rows found in CSV" });
 
-    // Initialize job
     batchJobs[jobId] = {
-      total: guests.length,
+      total:     guests.length,
       processed: 0,
-      success: 0,
-      failed: 0,
-      status: "running",
-      results: [],
+      success:   0,
+      failed:    0,
+      status:    "running",
+      results:   [],
       startedAt: new Date().toISOString(),
     };
 
     res.json({ jobId, total: guests.length, message: "Batch job started" });
-
-    // Process in background
     processBatch(jobId, guests);
   });
 });
@@ -51,14 +48,27 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 async function processBatch(jobId, guests) {
   for (const guest of guests) {
     try {
-      const emailHash = crypto.createHash("sha256").update(guest.email.toLowerCase().trim()).digest("hex");
-      const emailLocal = guest.email.split("@")[0];
+      const emailHash   = crypto.createHash("sha256").update(guest.email.toLowerCase().trim()).digest("hex");
+      const emailLocal  = guest.email.split("@")[0];
       const emailDomain = guest.email.split("@")[1] || "";
 
-      const { found, scrapedData, snippets } = await searchGuest(guest.email, guest.name);
-      const allText = [...snippets, ...Object.values(scrapedData)];
-      const analysis = analyzeText(allText.length > 0 ? allText : [guest.name, emailLocal]);
+      // Step 1: search + metadata (same as single lookup)
+      const { found, scrapedData, snippets, metadata } = await searchGuest(guest.email, guest.name);
 
+      // Step 2: NLP analysis
+      const allText  = [...snippets, ...Object.values(scrapedData)];
+      const analysis = analyzeText(
+        allText.length > 0 ? allText : [guest.name, emailLocal],
+        metadata
+      );
+
+      // Step 3: hotel recommendations (needed for ad poster generation on frontend)
+      const hotelRecommendations = await getHotelRecommendations(
+        metadata?.location  || "Bengaluru",
+        analysis.personaKey || "business"
+      );
+
+      // Step 4: save to DB
       let guestId;
       const existing = await pool.query("SELECT id FROM guests WHERE email_hash=$1", [emailHash]);
       if (existing.rows.length > 0) {
@@ -84,29 +94,50 @@ async function processBatch(jobId, guests) {
 
       await pool.query("DELETE FROM guest_analysis WHERE guest_id=$1", [guestId]);
       await pool.query(
-        `INSERT INTO guest_analysis 
+        `INSERT INTO guest_analysis
          (guest_id, persona, luxury_score, business_score, leisure_score, adventure_score,
           family_score, food_score, tech_score, eco_score, arts_score, sports_score,
           sentiment_score, keywords_detected, data_quality, snippets_count,
           room_recommendation, personalized_offer, staff_note)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-        [guestId, analysis.persona,
-         analysis.scores.luxury, analysis.scores.business, analysis.scores.leisure,
-         analysis.scores.adventure, analysis.scores.family, analysis.scores.food,
-         analysis.scores.tech, analysis.scores.eco, analysis.scores.arts, analysis.scores.sports,
-         analysis.sentimentScore, analysis.keywords.join(","),
-         analysis.dataQuality, analysis.snippetsCount,
-         analysis.roomRecommendation, analysis.personalizedOffer, analysis.staffNote]
+        [
+          guestId, analysis.persona,
+          analysis.scores.luxury, analysis.scores.business, analysis.scores.leisure,
+          analysis.scores.adventure, analysis.scores.family, analysis.scores.food,
+          analysis.scores.tech, analysis.scores.eco, analysis.scores.arts, analysis.scores.sports,
+          analysis.sentimentScore, analysis.keywords.join(","),
+          analysis.dataQuality, analysis.snippetsCount,
+          analysis.roomRecommendation, analysis.personalizedOffer,
+          analysis.staffNote + " ||METADATA|| " + JSON.stringify({
+            ...metadata,
+            adRecommendations: analysis.adRecommendations || [],
+          }),
+        ]
       );
 
-      batchJobs[jobId].results.push({ name: guest.name, email: guest.email, guestId, persona: analysis.persona, status: "success" });
+      // Push FULL result — same shape as single guest lookup response
+      batchJobs[jobId].results.push({
+        status:    "success",
+        guestId,
+        guest:     { name: guest.name, email: guest.email, emailLocal, emailDomain },
+        profiles:  found,
+        scrapedPlatforms: Object.keys(scrapedData),
+        metadata,
+        analysis,
+        hotelRecommendations,
+      });
       batchJobs[jobId].success++;
+
     } catch (err) {
-      batchJobs[jobId].results.push({ name: guest.name, email: guest.email, status: "failed", error: err.message });
+      batchJobs[jobId].results.push({
+        status: "failed",
+        guest:  { name: guest.name, email: guest.email },
+        error:  err.message,
+      });
       batchJobs[jobId].failed++;
     }
     batchJobs[jobId].processed++;
-    await delay(1000); // Rate limiting
+    await delay(1000); // rate limiting
   }
   batchJobs[jobId].status = "completed";
 }
