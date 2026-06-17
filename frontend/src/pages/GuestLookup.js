@@ -402,7 +402,7 @@ export default function GuestLookup() {
       setStep(STEPS[stepIdx]);
     }, 2200);
     try {
-      const { data } = await axios.post(`${API}/api/guests/lookup`, { name: form.name, email: form.email });
+      const { data } = await axios.post(`${API}/api/guest/lookup`, { name: form.name, email: form.email });
       setResult(data);
     } catch (err) {
       setError(err.response?.data?.error || "Something went wrong. Please try again.");
