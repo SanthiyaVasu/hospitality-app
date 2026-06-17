@@ -107,24 +107,41 @@ async function pdlSearch(email, name) {
       })
     );
 
+    let matchType = null;
+
     if (!person && !isGeneric && domainRoot.length > 2) {
       person = results.find(p =>
         (p.job_company_website || "").toLowerCase().includes(domainRoot) ||
         (p.job_company_name    || "").toLowerCase().includes(domainRoot)
       );
+      if (person) matchType = "domain";
     }
 
     if (!person && !isCommon && !isGeneric) {
       person = results[0];
-      console.log("⚠️ PDL using risky fallback match (no exact/domain match found):", person?.full_name, "at", person?.job_company_name);
+      matchType = "name-fallback";
     }
+
     if (!person) {
-      console.log("PDL search: no reliable match for", email, "— skipping");
+      console.log("PDL: no reliable match for", email);
       return null;
     }
 
-    console.log("PDL matched via:", person.full_name, "|", person.job_title, "|", person.job_company_name);
-    return parsePDLPerson(person);
+    console.log("PDL matched via:", matchType, "→", person.full_name, "|", person.job_title, "|", person.job_company_name);
+
+    const parsed = parsePDLPerson(person);
+
+    // Only trust location/age if match was via verified domain — name-fallback matches
+    // are too risky for personal fields like location and birth year
+    if (matchType !== "domain") {
+      parsed.location  = null;
+      parsed.country   = null;
+      parsed.age       = null;
+      parsed.birthYear = null;
+      console.log("PDL match was name-fallback only — discarding location/age (too risky)");
+    }
+
+    return parsed;
   } catch (err) {
     console.log("⚠️ PDL search error:", err.message);
     return null;
