@@ -398,32 +398,112 @@ export default function GuestLookup() {
     "Saving record to database...",
   ];
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setResult(null);
-
-    let stepIndex = 0;
-    setStep(STEPS[0]);
-    const stepInterval = setInterval(() => {
-      stepIndex = Math.min(stepIndex + 1, STEPS.length - 1);
-      setStep(STEPS[stepIndex]);
-    }, 1800);
-
+  async function handleSendEmail() {
+    if (!active) { setEmailError("Please select a variant first."); return; }
+    setSending(true); setEmailError(""); setEmailSent(false);
     try {
-      // NOTE: endpoint assumed — adjust to match your backend's actual route
-      const res = await axios.post(`${API}/api/guest/analyze`, {
-        name:  form.name,
-        email: form.email,
-      }, { timeout: 60000 });
-      setResult(res.data);
+      const formUrl = `https://hospitality-app-1.onrender.com/preferences?name=${encodeURIComponent(guestName)}&email=${encodeURIComponent(guestEmail)}`;
+
+      const variantLabels = {
+        1: "Personalised Offer",
+        2: "Room Recommendation",
+        3: "Exclusive Deal",
+      };
+
+      const personaKey = (persona||"").toLowerCase().replace(" traveler","").trim();
+      const themes = {
+        luxury:   {bg1:"#1a1208",bg2:"#3d2b0e",accent:"#c9a84c"},
+        business: {bg1:"#0d1520",bg2:"#1a2d42",accent:"#5b8fc9"},
+        leisure:  {bg1:"#0d1f18",bg2:"#163325",accent:"#4caf7d"},
+        adventure:{bg1:"#1a0e06",bg2:"#3d2010",accent:"#d4693a"},
+        family:   {bg1:"#0f1625",bg2:"#1e2d4a",accent:"#7b9fd4"},
+        food:     {bg1:"#1a0808",bg2:"#3d1010",accent:"#d45b5b"},
+        eco:      {bg1:"#0a1a0d",bg2:"#14321a",accent:"#5bbf6e"},
+        arts:     {bg1:"#16091a",bg2:"#2d1035",accent:"#a06cc9"},
+        sports:   {bg1:"#0d1a0d",bg2:"#1a3318",accent:"#6cbf5b"},
+        default:  {bg1:"#111111",bg2:"#2a2a2a",accent:"#aaaaaa"},
+      };
+      const t   = themes[personaKey] || themes.default;
+      const offer   = analysis?.personalizedOffer  || "Exclusive welcome package";
+      const roomRec = analysis?.roomRecommendation || "Premium room selected";
+      const headlines = {
+        1: { h1:"We Found Your",                          h2:"Perfect Hotel."    },
+        2: { h1:"The Best Room",                          h2:"In The House."     },
+        3: { h1:(guestName||"Guest").split(" ")[0]+",",   h2:"Your Stay Is Ready." },
+      };
+      const hl  = headlines[active] || headlines[1];
+      const loc = (meta?.location && meta.location !== "Unknown") ? meta.location : "";
+      const fn  = (guestName||"Guest").split(" ")[0];
+
+      // Build SVG string
+      const svgString = [
+        `<svg viewBox="0 0 420 220" xmlns="http://www.w3.org/2000/svg" width="840" height="440">`,
+        `<defs>`,
+        `<linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,
+        `<stop offset="0%" stop-color="${t.bg1}"/>`,
+        `<stop offset="100%" stop-color="${t.bg2}"/>`,
+        `</linearGradient>`,
+        `<clipPath id="c"><rect width="420" height="220" rx="10"/></clipPath>`,
+        `</defs>`,
+        `<g clip-path="url(#c)">`,
+        `<rect width="420" height="220" fill="url(#g)"/>`,
+        `<circle cx="340" cy="30" r="90" fill="${t.accent}" opacity="0.07"/>`,
+        `<circle cx="380" cy="120" r="55" fill="${t.accent}" opacity="0.05"/>`,
+        `<rect x="0" y="0" width="5" height="220" fill="${t.accent}" opacity="0.9"/>`,
+        `<text x="18" y="38" font-size="11" font-weight="500" fill="${t.accent}" font-family="Helvetica Neue,sans-serif" opacity="0.85" font-style="italic">Hey ${fn},</text>`,
+        `<text x="18" y="66" font-size="23" font-weight="800" fill="#ffffff" font-family="Helvetica Neue,sans-serif">${hl.h1}</text>`,
+        `<text x="18" y="94" font-size="23" font-weight="800" fill="${t.accent}" font-family="Helvetica Neue,sans-serif">${hl.h2}</text>`,
+        `<line x1="18" y1="106" x2="220" y2="106" stroke="${t.accent}" stroke-width="0.6" opacity="0.3"/>`,
+        `<text x="18" y="124" font-size="11" font-weight="700" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.95">${persona||""}</text>`,
+        `<rect x="18" y="134" width="260" height="36" rx="5" fill="#ffffff" opacity="0.06"/>`,
+        `<text x="28" y="148" font-size="7.5" font-weight="700" fill="${t.accent}" font-family="Helvetica Neue,sans-serif" letter-spacing="0.1em" opacity="0.8">SPECIAL OFFER</text>`,
+        `<text x="28" y="162" font-size="9" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.72">${(offer||"").slice(0,50)}</text>`,
+        loc ? `<line x1="18" y1="180" x2="420" y2="180" stroke="#ffffff" stroke-width="0.4" opacity="0.1"/>` : "",
+        loc ? `<text x="18" y="194" font-size="9" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.5">Location: ${loc}</text>` : "",
+        `<rect x="306" y="188" width="108" height="24" rx="5" fill="${t.accent}" opacity="0.95"/>`,
+        `<text x="360" y="203" font-size="10" font-weight="700" fill="${t.bg1}" font-family="Helvetica Neue,sans-serif" text-anchor="middle">View Offer</text>`,
+        `<rect x="0" y="215" width="420" height="5" fill="${t.accent}" opacity="0.2"/>`,
+        `</g></svg>`,
+      ].join("\n");
+
+      // Try to get QR code — if it fails use null
+      let qrDataUrl = null;
+      try {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(formUrl)}&bgcolor=ffffff&color=1c1917&margin=4`;
+        const qrRes = await fetch(qrUrl);
+        if (qrRes.ok) {
+          const qrBlob = await qrRes.blob();
+          qrDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(qrBlob);
+          });
+        }
+      } catch (qrErr) {
+        console.log("QR fetch failed, sending without QR:", qrErr.message);
+      }
+
+      // Send email
+      const res = await axios.post(`${API}/api/email/send-ad`, {
+        guestEmail,
+        guestName,
+        persona,
+        variantLabel: variantLabels[active],
+        svgString,
+        qrDataUrl,
+        formUrl,
+        offer,
+        roomRec,
+      });
+
+      console.log("Email response:", res.data);
+      setEmailSent(true);
+
     } catch (err) {
-      setError(err.response?.data?.error || err.message || "Failed to analyse guest. Please try again.");
+      console.error("Email send error:", err);
+      setEmailError(err.response?.data?.error || err.message || "Failed to send email. Please try again.");
     } finally {
-      clearInterval(stepInterval);
-      setLoading(false);
-      setStep("");
+      setSending(false);
     }
   }
 
