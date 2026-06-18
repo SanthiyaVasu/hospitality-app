@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "https://hospitality-backend-w17q.onrender.com";
+const API = "https://hospitality-backend-1.onrender.com";
 // ── Pre-fill from QR code URL params ─────────────────────────
 const params       = new URLSearchParams(window.location.search);
 const prefillName  = params.get("name")  || "";
