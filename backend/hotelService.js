@@ -7,6 +7,9 @@ const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 // ── Fetch real hotels from OpenStreetMap by city ─────────────
 async function fetchHotels(city, persona, limit = 6) {
   try {
+    // Sanitize city name — remove special chars that break Overpass QL syntax
+    city = (city || "Bengaluru").replace(/["\\]/g, "").trim();
+    if (!city) city = "Bengaluru";
     // Map persona to hotel type keywords
     const typeMap = {
       luxury:   ["5 star","luxury","palace","grand","oberoi","taj","leela","marriott","hyatt","hilton","ritz"],
