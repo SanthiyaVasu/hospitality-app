@@ -34,7 +34,14 @@ async function fetchHotels(city, persona, limit = 6) {
 
     const res = await axios.post(OVERPASS_URL,
       `data=${encodeURIComponent(query)}`,
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 10000 }
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent":   "HospitalityIntelligenceSuite/1.0 (contact: " + (process.env.EMAIL_USER || "admin@example.com") + ")",
+          "Accept":       "application/json",
+        },
+        timeout: 10000,
+      }
     );
 
     let hotels = res.data.elements || [];
