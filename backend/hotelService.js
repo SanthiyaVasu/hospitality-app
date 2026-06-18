@@ -27,14 +27,13 @@ async function fetchHotels(city, persona, limit = 6) {
 
     // Overpass query to find hotels in the city
     const query = `
-      [out:json][timeout:10];
-      area["name"="${city}"]["boundary"="administrative"]->.a;
-      (
-        node["tourism"="hotel"]["name"](area.a);
-        way["tourism"="hotel"]["name"](area.a);
-      );
-      out ${limit * 3} qt;
-    `;
+  [out:json][timeout:15];
+  area["name"="${city}"]["boundary"="administrative"]->.a;
+  (
+    node["tourism"="hotel"]["name"](area.a);
+  );
+  out ${limit * 2} qt;
+`;
 
     console.log("Overpass query for city:", JSON.stringify(city));
 
@@ -46,7 +45,7 @@ async function fetchHotels(city, persona, limit = 6) {
           "User-Agent":   "HospitalityIntelligenceSuite/1.0 (contact: " + (process.env.EMAIL_USER || "admin@example.com") + ")",
           "Accept":       "application/json",
         },
-        timeout: 10000,
+        timeout: 15000,
       }
     );
 
