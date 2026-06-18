@@ -35,6 +35,7 @@ async function fetchHotels(city, persona, limit = 6) {
       out ${limit * 3} qt;
     `;
 
+  console.log("Overpass query for city:", JSON.stringify(city));
     const res = await axios.post(OVERPASS_URL,
       `data=${encodeURIComponent(query)}`,
       {
@@ -46,7 +47,6 @@ async function fetchHotels(city, persona, limit = 6) {
         timeout: 10000,
       }
     );
-
     let hotels = res.data.elements || [];
 
     // Filter hotels with names only
