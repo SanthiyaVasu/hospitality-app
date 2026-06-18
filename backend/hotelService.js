@@ -1,91 +1,11 @@
 const axios = require("axios");
 require("dotenv").config();
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-
-// ── Fetch real hotels from OpenStreetMap by city ─────────────
+// ── Fetch hotels — uses curated list directly (Overpass removed: too unreliable/slow on free tier) ──
 async function fetchHotels(city, persona, limit = 6) {
-  try {
-    // Sanitize city name — remove special chars that break Overpass QL syntax
-    city = (city || "Bengaluru").replace(/["\\]/g, "").trim();
-    if (!city) city = "Bengaluru";
-
-    // Map persona to hotel type keywords
-    const typeMap = {
-      luxury:   ["5 star","luxury","palace","grand","oberoi","taj","leela","marriott","hyatt","hilton","ritz"],
-      business: ["business","executive","courtyard","novotel","ibis","holiday inn","radisson","sheraton"],
-      leisure:  ["resort","boutique","heritage","garden","lake","view"],
-      adventure:["hostel","backpacker","inn","lodge","camp"],
-      family:   ["family","suite","apartment","serviced"],
-      food:     ["boutique","heritage"],
-      eco:      ["eco","green","sustainable","nature"],
-      arts:     ["heritage","boutique","art","cultural"],
-      sports:   ["sports","fitness","spa","wellness"],
-    };
-
-    const keywords = typeMap[persona] || typeMap.business;
-
-    // Overpass query to find hotels in the city
-    const query = `
-  [out:json][timeout:15];
-  area["name"="${city}"]["boundary"="administrative"]->.a;
-  (
-    node["tourism"="hotel"]["name"](area.a);
-  );
-  out ${limit * 2} qt;
-`;
-
-    console.log("Overpass query for city:", JSON.stringify(city));
-
-    const res = await axios.post(OVERPASS_URL,
-      `data=${encodeURIComponent(query)}`,
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent":   "HospitalityIntelligenceSuite/1.0 (contact: " + (process.env.EMAIL_USER || "admin@example.com") + ")",
-          "Accept":       "application/json",
-        },
-        timeout: 15000,
-      }
-    );
-
-    let hotels = res.data.elements || [];
-
-    // Filter hotels with names only
-    hotels = hotels.filter(h => h.tags?.name && h.tags.name.length > 2);
-
-    // Score hotels by persona keywords
-    hotels = hotels.map(h => {
-      const name = (h.tags.name || "").toLowerCase();
-      const score = keywords.filter(k => name.includes(k)).length;
-      return { ...h, score };
-    });
-
-    // Sort by score desc, take top N
-    hotels.sort((a, b) => b.score - a.score);
-    hotels = hotels.slice(0, limit);
-
-    // If not enough from OSM, generate curated list
-    if (hotels.length < 3) {
-      return getCuratedHotels(city, persona, limit);
-    }
-
-    return hotels.map(h => ({
-      name:    h.tags.name,
-      stars:   h.tags.stars || h.tags["tourism:stars"] || null,
-      address: [h.tags["addr:street"], h.tags["addr:city"]].filter(Boolean).join(", ") || city,
-      phone:   h.tags.phone || null,
-      website: h.tags.website || null,
-      lat:     h.lat || h.center?.lat,
-      lon:     h.lon || h.center?.lon,
-    }));
-
-  } catch (err) {
-    console.log("Overpass error:", err.message);
-    console.log("Overpass error response body:", JSON.stringify(err.response?.data));
-    console.log("— using curated list");
-    return getCuratedHotels(city, persona, limit);
-  }
+  city = (city || "Bengaluru").replace(/["\\]/g, "").trim();
+  if (!city) city = "Bengaluru";
+  return getCuratedHotels(city, persona, limit);
 }
 
 // ── Curated hotel lists per city + persona ───────────────────
@@ -122,10 +42,26 @@ function getCuratedHotels(city, persona, limit = 6) {
       business: ["Novotel Pune Nagar Road","Courtyard by Marriott Pune","Radisson Blu Pune Kharadi","Ibis Pune Hinjewadi","Double Tree Pune","Lemon Tree Hotel Pune"],
       default:  ["JW Marriott Pune","Conrad Pune","Westin Pune","Hyatt Pune","Novotel Pune","Radisson Blu Pune"],
     },
+    "Tiruppur": {
+      luxury:   ["Hotel Asma Towers","Hotel Mass Grand","Hotel Rathna Residency","Hotel KK International","Hotel Hyfun Grand","Hotel Sangam International"],
+      business: ["Hotel Mass Grand","Hotel Surya International","Hotel KK Residency","Hotel Pavithra Towers","Hotel Annpoorna Grand","Hotel City Centre"],
+      leisure:  ["Hotel Rathna Residency","Hotel Asma Towers","Hotel Sangam International","Hotel Green Park","Hotel KK International","Hotel City Centre"],
+      default:  ["Hotel Mass Grand","Hotel Asma Towers","Hotel Rathna Residency","Hotel KK International","Hotel Sangam International","Hotel Surya International"],
+    },
+    "Coimbatore": {
+      luxury:   ["Vivanta Coimbatore","The Residency Towers","Le Meridien Coimbatore","Sheraton Grand Chola","Taj Coimbatore","Heritance Coimbatore"],
+      business: ["Le Meridien Coimbatore","The Residency Towers","Courtyard by Marriott","Vivanta Coimbatore","FCC Lakshmi Mahal","Hotel Le Royal Park"],
+      default:  ["Vivanta Coimbatore","The Residency Towers","Le Meridien Coimbatore","Taj Coimbatore","Sheraton Grand Chola","FCC Lakshmi Mahal"],
+    },
+    "Madurai": {
+      luxury:   ["Heritance Madurai","Gateway Hotel Pasumalai","Hotel Sangam Madurai","Taj Gateway Madurai","Royal Court Madurai","Madurai Residency"],
+      business: ["Gateway Hotel Pasumalai","Hotel Sangam Madurai","Royal Court Madurai","Hotel Madurai Park","Courtyard Madurai","Hotel Supreme Madurai"],
+      default:  ["Heritance Madurai","Gateway Hotel Pasumalai","Hotel Sangam Madurai","Royal Court Madurai","Taj Gateway Madurai","Madurai Residency"],
+    },
   };
 
   const personaKey = ["luxury","business","leisure","adventure","family","food","eco","arts","sports"].includes(persona)
-    ? (["luxury","business"].includes(persona) ? persona : "leisure")
+    ? (["luxury","business","leisure"].includes(persona) ? persona : "default")
     : "default";
 
   const cityData = cityMap[city] || cityMap["Bengaluru"];
