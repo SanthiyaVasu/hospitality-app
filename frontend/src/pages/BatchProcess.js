@@ -356,7 +356,7 @@ export default function BatchProcess() {
     <div style={{ fontFamily:"'DM Sans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
 
       <div style={{ padding:"28px 40px 20px", borderBottom:`1px solid ${C.border}`, background:C.surface }}>
-        <h1 style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:"-0.3px", marginBottom:3 }}>Batch Guest Processing</h1>
+        <h1 style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:"-0.3px", marginBottom:3 }}>Batch Guest Processing — TEST V2</h1>
         <p style={{ color:C.textMid, fontSize:13 }}>Upload a CSV with guest names and emails. Each guest gets a complete intelligence profile, ad creatives and QR code.</p>
       </div>
 
