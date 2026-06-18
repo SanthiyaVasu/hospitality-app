@@ -1,7 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
 
-const UNSPLASH_KEY = process.env.UNSPLASH_ACCESS_KEY;
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 
 // ── Fetch real hotels from OpenStreetMap by city ─────────────
@@ -10,6 +9,7 @@ async function fetchHotels(city, persona, limit = 6) {
     // Sanitize city name — remove special chars that break Overpass QL syntax
     city = (city || "Bengaluru").replace(/["\\]/g, "").trim();
     if (!city) city = "Bengaluru";
+
     // Map persona to hotel type keywords
     const typeMap = {
       luxury:   ["5 star","luxury","palace","grand","oberoi","taj","leela","marriott","hyatt","hilton","ritz"],
@@ -36,6 +36,7 @@ async function fetchHotels(city, persona, limit = 6) {
     `;
 
     console.log("Overpass query for city:", JSON.stringify(city));
+
     const res = await axios.post(OVERPASS_URL,
       `data=${encodeURIComponent(query)}`,
       {
@@ -81,10 +82,11 @@ async function fetchHotels(city, persona, limit = 6) {
 
   } catch (err) {
     console.log("Overpass error:", err.message);
-    console.log("Overpass error response body:", err.response?.data);
+    console.log("Overpass error response body:", JSON.stringify(err.response?.data));
     console.log("— using curated list");
     return getCuratedHotels(city, persona, limit);
   }
+}
 
 // ── Curated hotel lists per city + persona ───────────────────
 function getCuratedHotels(city, persona, limit = 6) {
@@ -129,7 +131,7 @@ function getCuratedHotels(city, persona, limit = 6) {
   const cityData = cityMap[city] || cityMap["Bengaluru"];
   const names    = cityData[personaKey] || cityData.default || cityData.business;
 
-  return names.slice(0, limit).map((name, i) => ({
+  return names.slice(0, limit).map((name) => ({
     name,
     stars:   persona === "luxury" ? "5" : persona === "business" ? "4" : null,
     address: city,
@@ -140,7 +142,7 @@ function getCuratedHotels(city, persona, limit = 6) {
   }));
 }
 
-// ── Fetch image from Unsplash ─────────────────────────────────
+// ── Fetch image via Pollinations.ai (free, no key, no rate limit) ──
 function fetchHotelImage(hotelName, city, persona) {
   const personaQuery = {
     luxury:    "luxury hotel interior elegant chandelier",
@@ -154,9 +156,10 @@ function fetchHotelImage(hotelName, city, persona) {
     sports:    "hotel gym spa fitness modern",
   };
   const query = (personaQuery[persona] || "hotel") + " " + city + " professional photography";
-  const url = "https://image.pollinations.ai/prompt/" +
+  const seed  = Math.abs((hotelName || "hotel").split("").reduce((a, c) => a + c.charCodeAt(0), 0));
+  const url   = "https://image.pollinations.ai/prompt/" +
     encodeURIComponent(query) +
-    "?width=480&height=320&nologo=true&seed=" + Math.abs(hotelName.split("").reduce((a,c)=>a+c.charCodeAt(0),0));
+    "?width=480&height=320&nologo=true&seed=" + seed;
 
   return Promise.resolve({
     url:   url,
@@ -165,27 +168,23 @@ function fetchHotelImage(hotelName, city, persona) {
     photographer: null,
   });
 }
+
 // ── Main: get hotel recommendations with images ───────────────
 async function getHotelRecommendations(city, persona, adType) {
   if (!city || city === "Unknown") city = "Bengaluru";
 
-  // Normalize city name
   const cityMap = { "Bangalore": "Bengaluru", "New Delhi": "Delhi", "Bombay": "Mumbai" };
   city = cityMap[city] || city;
 
-  console.log(`🏨 Fetching hotels for ${city} — persona: ${persona}`);
+  console.log("Fetching hotels for " + city + " — persona: " + persona);
 
-  // Fetch hotels + images in parallel
   const [hotels, image] = await Promise.all([
     fetchHotels(city, persona, 6),
     fetchHotelImage("luxury hotel", city, persona),
   ]);
 
-  // Fetch individual images for top 3 hotels
   const hotelImages = await Promise.allSettled(
-    hotels.slice(0, 6).map((h, i) =>
-      fetchHotelImage(h.name, city, persona)
-    )
+    hotels.slice(0, 6).map((h) => fetchHotelImage(h.name, city, persona))
   );
 
   return hotels.map((hotel, i) => ({
