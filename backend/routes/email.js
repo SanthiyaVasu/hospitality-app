@@ -4,13 +4,16 @@ const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  family: 4,  // force IPv4 — fixes ENETUNREACH on Render
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false,
+  },
+  family: 4,
 });
 // POST /api/email/send-ad
 // Body: { guestEmail, guestName, persona, variant, variantLabel,
