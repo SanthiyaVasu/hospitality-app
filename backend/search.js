@@ -33,13 +33,18 @@ async function hunterLookup(email) {
     const data   = res.data?.data;
     company      = data?.organization || null;
     const emails = data?.emails || [];
+    console.log("Hunter domain-search emails found:", JSON.stringify(emails.map(e => ({ value: e.value, position: e.position })), null, 2));
+
     const match  = emails.find(e => e.value?.toLowerCase() === email.toLowerCase());
     if (match) {
+      console.log("Hunter exact email match object:", JSON.stringify(match, null, 2));
       fullName = `${match.first_name || ""} ${match.last_name || ""}`.trim() || null;
       jobTitle = match.position || null;
       linkedin = match.linkedin || null;
       twitter  = match.twitter  || null;
       console.log("✅ Hunter domain match:", fullName, "|", jobTitle, "at", company);
+    } else {
+      console.log("⚠️ Hunter: no exact email match found in domain-search results for", email);
     }
   } catch (err) {
     console.log("⚠️ Hunter domain error:", err.message);
