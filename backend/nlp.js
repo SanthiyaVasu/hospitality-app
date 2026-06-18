@@ -1,10 +1,13 @@
 // NLP Analysis Engine — Metadata-Aware with Fixed Persona Scoring
 
-const KEYWORDS = {
+  const KEYWORDS = {
   luxury:    ["luxury","premium","suite","spa","vip","exclusive","rooftop","penthouse",
               "champagne","butler","concierge","5-star","fine dining","michelin","resort",
               "yacht","first class","bespoke","lavish","opulent","high-end","elite","private"],
-  business:  ["business","ceo"],
+  business:  ["business","conference","meeting","corporate","entrepreneur","startup",
+              "executive","ceo","manager","networking","deal","presentation","client",
+              "b2b","investment","strategy","finance","pitch","revenue","growth",
+              "leadership","founder","co-founder","venture","board","stakeholder"],
   leisure:   ["vacation","holiday","relax","leisure","sightseeing","tourist","beach",
               "pool","sunset","history","local food","photography","wanderlust","getaway",
               "scenic","cruise","island","retreat","explore","tour","cultural trip"],
