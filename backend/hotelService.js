@@ -139,38 +139,30 @@ function getCuratedHotels(city, persona, limit = 6) {
 }
 
 // ── Fetch image from Unsplash ─────────────────────────────────
-async function fetchHotelImage(hotelName, city, persona) {
-  if (!UNSPLASH_KEY) return null;
-  try {
-    const personaQuery = {
-      luxury:   "luxury hotel interior elegant",
-      business: "business hotel modern",
-      leisure:  "resort hotel pool scenic",
-      adventure:"boutique hotel nature",
-      family:   "family hotel suite",
-      food:     "hotel restaurant fine dining",
-      eco:      "eco hotel green nature",
-      arts:     "boutique hotel art cultural",
-      sports:   "hotel gym spa fitness",
-    };
-    const query = `${personaQuery[persona] || "hotel"} ${city}`;
-    const res   = await axios.get("https://api.unsplash.com/search/photos", {
-      params:  { query, per_page: 1, orientation: "landscape" },
-      headers: { Authorization: `Client-ID ${UNSPLASH_KEY}` },
-      timeout: 5000,
-    });
-    const photo = res.data.results?.[0];
-    return photo ? {
-      url:   photo.urls.regular,
-      small: photo.urls.small,
-      thumb: photo.urls.thumb,
-      photographer: photo.user.name,
-    } : null;
-  } catch {
-    return null;
-  }
-}
+function fetchHotelImage(hotelName, city, persona) {
+  const personaQuery = {
+    luxury:    "luxury hotel interior elegant chandelier",
+    business:  "business hotel modern lobby professional",
+    leisure:   "resort hotel pool scenic relaxing",
+    adventure: "boutique hotel nature outdoor",
+    family:    "family hotel suite comfortable",
+    food:      "hotel restaurant fine dining elegant",
+    eco:       "eco hotel green nature sustainable",
+    arts:      "boutique hotel art cultural elegant",
+    sports:    "hotel gym spa fitness modern",
+  };
+  const query = (personaQuery[persona] || "hotel") + " " + city + " professional photography";
+  const url = "https://image.pollinations.ai/prompt/" +
+    encodeURIComponent(query) +
+    "?width=480&height=320&nologo=true&seed=" + Math.abs(hotelName.split("").reduce((a,c)=>a+c.charCodeAt(0),0));
 
+  return Promise.resolve({
+    url:   url,
+    small: url,
+    thumb: url,
+    photographer: null,
+  });
+}
 // ── Main: get hotel recommendations with images ───────────────
 async function getHotelRecommendations(city, persona, adType) {
   if (!city || city === "Unknown") city = "Bengaluru";
