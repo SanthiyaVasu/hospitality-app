@@ -28,9 +28,10 @@ async function fetchHotels(city, persona, limit = 6) {
     // Overpass query to find hotels in the city
     const query = `
       [out:json][timeout:10];
+      area["name"="${city}"]["boundary"="administrative"]->.a;
       (
-        node["tourism"="hotel"]["name"](area["name"="${city}"]["place"~"city|town"]->.a);
-        way["tourism"="hotel"]["name"](area["name"="${city}"]["place"~"city|town"]->.a);
+        node["tourism"="hotel"]["name"](area.a);
+        way["tourism"="hotel"]["name"](area.a);
       );
       out ${limit * 3} qt;
     `;
