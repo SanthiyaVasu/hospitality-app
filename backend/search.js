@@ -480,6 +480,33 @@ async function searchGuest(email, name) {
   const local = email.split("@")[0];
   const start = Date.now();
 
+  // ── Generic email providers — skip risky web search entirely ──
+  const GENERIC_DOMAINS = ["gmail.com","yahoo.com","hotmail.com","outlook.com",
+                            "rediffmail.com","icloud.com","protonmail.com","ymail.com","live.com"];
+  const emailDomain = email.split("@")[1]?.toLowerCase() || "";
+
+  if (GENERIC_DOMAINS.includes(emailDomain)) {
+    console.log("Generic email provider detected — skipping web search to avoid wrong-person data:", emailDomain);
+    return {
+      found: {},
+      scrapedData: {},
+      snippets: [],
+      metadata: {
+        fullName: null,
+        age: null, ageRange: null, ageSource: null,
+        location: "Unknown", locationSource: null,
+        profession: null, company: null, seniority: null, industry: null,
+        salary: "Unknown", salarySource: null,
+        skills: [], education: [], pastCompanies: [],
+        lifestyle: [], travelFrequency: "Unknown", spendingLevel: "Unknown",
+        dataSource: "Limited — generic email provider",
+        isGenericEmail: true,
+      },
+      pdlData: null,
+      hunterData: null,
+    };
+  }
+
   // STEP 1 — APIs first (most accurate)
   console.log("Calling Hunter.io + PDL APIs...");
   const [pdlResult, hunterResult] = await Promise.allSettled([
