@@ -109,7 +109,7 @@ function downloadSVG(svgEl, filename) {
 function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecommendations }) {
   const [selected,    setSelected]    = useState(null);
   const [sending,     setSending]     = useState(false);
-  const [sendStatus,  setSendStatus]  = useState(null);
+  const [sendStatus,  setSendStatus]  = useState(null); // "success" | "error" | null
   const [sendMsg,     setSendMsg]     = useState("");
   const refs = { 1:React.createRef(), 2:React.createRef(), 3:React.createRef() };
 
@@ -121,6 +121,7 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
     3: { title:"Exclusive Deal",       desc:"Special offer crafted for this guest" },
   };
 
+  // ── Get SVG string of selected variant ───────────────────
   function getSelectedSVG() {
     if (!selected) return null;
     const svgEl = refs[selected].current?.querySelector("svg");
@@ -128,6 +129,7 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
     return new XMLSerializer().serializeToString(svgEl);
   }
 
+  // ── Send email with ad + QR ───────────────────────────────
   async function handleSendEmail() {
     if (!selected) { setSendStatus("error"); setSendMsg("Please select an ad variant first."); return; }
     if (!guestEmail) { setSendStatus("error"); setSendMsg("Guest email not available."); return; }
@@ -141,15 +143,15 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
 
     try {
       await axios.post(`${API}/api/email/send-ad`, {
-        guestName,
-        guestEmail,
-        persona,
-        variantLabel:  labels[selected].title,
-        svgString,
-        formUrl,
-        offer:         analysis?.personalizedOffer || "",
-        roomRec:       analysis?.roomRecommendation || "",
-      }, { timeout: 30000 });
+  guestName,
+  guestEmail,
+  persona,
+  variantLabel:  labels[selected].title,
+  svgString,
+  formUrl,
+  offer:         analysis?.personalizedOffer || "",
+  roomRec:       analysis?.roomRecommendation || "",
+}, { timeout: 30000 }); // 30 seconds timeout
       setSendStatus("success");
       setSendMsg("Email sent successfully to " + guestEmail);
     } catch (err) {
@@ -172,6 +174,7 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
         Personalised hotel advertisement posters generated from this guest's profile. Select one and send directly to guest's email.
       </p>
 
+      {/* 3 Ad Poster Cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
         {[1,2,3].map(v => (
           <div key={v}
@@ -200,6 +203,7 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
         ))}
       </div>
 
+      {/* Send to Guest Panel */}
       <div style={{ marginTop:16, padding:"16px 18px", background:C.bg, borderRadius:8, border:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
           <div>
@@ -222,6 +226,7 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
           </button>
         </div>
 
+        {/* Status message */}
         {sendStatus && (
           <div style={{ marginTop:12, padding:"9px 12px", borderRadius:6, fontSize:12, fontWeight:500,
             background: sendStatus === "success" ? "#F0FDF4" : "#FEF2F2",
@@ -383,19 +388,8 @@ export default function GuestLookup() {
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState("");
   const [step,    setStep]    = useState("");
-
-  const STEPS = [
-    "Searching email across platforms...",
-    "Querying Hunter.io & People Data Labs...",
-    "Extracting profile metadata...",
-    "Running NLP behavioural analysis...",
-    "Generating guest intelligence report...",
-    "Saving record to database...",
-  ];
-
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !form.email.trim()) return;
     setLoading(true); setError(""); setResult(null); setStep(STEPS[0]);
     let stepIdx = 0;
     const stepTimer = setInterval(() => {
@@ -413,6 +407,155 @@ export default function GuestLookup() {
       setStep("");
     }
   }
+
+  const STEPS = [
+    "Searching email across platforms...",
+    "Querying Hunter.io & People Data Labs...",
+    "Extracting profile metadata...",
+    "Running NLP behavioural analysis...",
+    "Generating guest intelligence report...",
+    "Saving record to database...",
+  ];
+
+  async function handleSendEmail() {
+    if (!active) { setEmailError("Please select a variant first."); return; }
+    setSending(true); setEmailError(""); setEmailSent(false);
+    try {
+      const formUrl = `https://hospitality-app-1.onrender.com/preferences?name=${encodeURIComponent(guestName)}&email=${encodeURIComponent(guestEmail)}`;
+
+      const variantLabels = {
+        1: "Personalised Offer",
+        2: "Room Recommendation",
+        3: "Exclusive Deal",
+      };
+      
+      const personaKey = (persona||"").toLowerCase().replace(" traveler","").trim();
+      const themes = {
+        luxury:   {bg1:"#1a1208",bg2:"#3d2b0e",accent:"#c9a84c"},
+        business: {bg1:"#0d1520",bg2:"#1a2d42",accent:"#5b8fc9"},
+        leisure:  {bg1:"#0d1f18",bg2:"#163325",accent:"#4caf7d"},
+        adventure:{bg1:"#1a0e06",bg2:"#3d2010",accent:"#d4693a"},
+        family:   {bg1:"#0f1625",bg2:"#1e2d4a",accent:"#7b9fd4"},
+        food:     {bg1:"#1a0808",bg2:"#3d1010",accent:"#d45b5b"},
+        eco:      {bg1:"#0a1a0d",bg2:"#14321a",accent:"#5bbf6e"},
+        arts:     {bg1:"#16091a",bg2:"#2d1035",accent:"#a06cc9"},
+        sports:   {bg1:"#0d1a0d",bg2:"#1a3318",accent:"#6cbf5b"},
+        default:  {bg1:"#111111",bg2:"#2a2a2a",accent:"#aaaaaa"},
+      };
+      const t   = themes[personaKey] || themes.default;
+      const offer   = analysis?.personalizedOffer  || "Exclusive welcome package";
+      const roomRec = analysis?.roomRecommendation || "Premium room selected";
+      const headlines = {
+        1: { h1:"We Found Your",                          h2:"Perfect Hotel."    },
+        2: { h1:"The Best Room",                          h2:"In The House."     },
+        3: { h1:(guestName||"Guest").split(" ")[0]+",",   h2:"Your Stay Is Ready." },
+      };
+      const hl  = headlines[active] || headlines[1];
+      const loc = (meta?.location && meta.location !== "Unknown") ? meta.location : "";
+      const fn  = (guestName||"Guest").split(" ")[0];
+
+      // Build SVG string
+      const svgString = [
+        `<svg viewBox="0 0 420 220" xmlns="http://www.w3.org/2000/svg" width="840" height="440">`,
+        `<defs>`,
+        `<linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,
+        `<stop offset="0%" stop-color="${t.bg1}"/>`,
+        `<stop offset="100%" stop-color="${t.bg2}"/>`,
+        `</linearGradient>`,
+        `<clipPath id="c"><rect width="420" height="220" rx="10"/></clipPath>`,
+        `</defs>`,
+        `<g clip-path="url(#c)">`,
+        `<rect width="420" height="220" fill="url(#g)"/>`,
+        `<circle cx="340" cy="30" r="90" fill="${t.accent}" opacity="0.07"/>`,
+        `<circle cx="380" cy="120" r="55" fill="${t.accent}" opacity="0.05"/>`,
+        `<rect x="0" y="0" width="5" height="220" fill="${t.accent}" opacity="0.9"/>`,
+        `<text x="18" y="38" font-size="11" font-weight="500" fill="${t.accent}" font-family="Helvetica Neue,sans-serif" opacity="0.85" font-style="italic">Hey ${fn},</text>`,
+        `<text x="18" y="66" font-size="23" font-weight="800" fill="#ffffff" font-family="Helvetica Neue,sans-serif">${hl.h1}</text>`,
+        `<text x="18" y="94" font-size="23" font-weight="800" fill="${t.accent}" font-family="Helvetica Neue,sans-serif">${hl.h2}</text>`,
+        `<line x1="18" y1="106" x2="220" y2="106" stroke="${t.accent}" stroke-width="0.6" opacity="0.3"/>`,
+        `<text x="18" y="124" font-size="11" font-weight="700" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.95">${persona||""}</text>`,
+        `<rect x="18" y="134" width="260" height="36" rx="5" fill="#ffffff" opacity="0.06"/>`,
+        `<text x="28" y="148" font-size="7.5" font-weight="700" fill="${t.accent}" font-family="Helvetica Neue,sans-serif" letter-spacing="0.1em" opacity="0.8">SPECIAL OFFER</text>`,
+        `<text x="28" y="162" font-size="9" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.72">${(offer||"").slice(0,50)}</text>`,
+        loc ? `<line x1="18" y1="180" x2="420" y2="180" stroke="#ffffff" stroke-width="0.4" opacity="0.1"/>` : "",
+        loc ? `<text x="18" y="194" font-size="9" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.5">Location: ${loc}</text>` : "",
+        `<rect x="306" y="188" width="108" height="24" rx="5" fill="${t.accent}" opacity="0.95"/>`,
+        `<text x="360" y="203" font-size="10" font-weight="700" fill="${t.bg1}" font-family="Helvetica Neue,sans-serif" text-anchor="middle">View Offer</text>`,
+        `<rect x="0" y="215" width="420" height="5" fill="${t.accent}" opacity="0.2"/>`,
+        `</g></svg>`,
+      ].join("\n");
+
+      // Try to get QR code — if it fails use null
+      let qrDataUrl = null;
+      try {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(formUrl)}&bgcolor=ffffff&color=1c1917&margin=4`;
+        const qrRes = await fetch(qrUrl);
+        if (qrRes.ok) {
+          const qrBlob = await qrRes.blob();
+          qrDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(qrBlob);
+          });
+        }
+      } catch (qrErr) {
+        console.log("QR fetch failed, sending without QR:", qrErr.message);
+      }
+
+      // Send email
+      const res = await axios.post(`${API}/api/email/send-ad`, {
+        guestEmail,
+        guestName,
+        persona,
+        variantLabel: variantLabels[active],
+        svgString,
+        qrDataUrl,
+        formUrl,
+        offer,
+        roomRec,
+      });
+
+      console.log("Email response:", res.data);
+      setEmailSent(true);
+
+    } catch (err) {
+      console.error("Email send error:", err);
+      setEmailError(err.response?.data?.error || err.message || "Failed to send email. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleSendEmail() {
+    if (!selected) { setSendStatus("error"); setSendMsg("Please select an ad variant first."); return; }
+    if (!guestEmail) { setSendStatus("error"); setSendMsg("Guest email not available."); return; }
+
+    const svgString = getSelectedSVG();
+    const formUrl   = "https://hospitality-app-39zz.onrender.com/preferences?" +
+      "name="  + encodeURIComponent(guestName)  + "&" +
+      "email=" + encodeURIComponent(guestEmail);
+
+    setSending(true); setSendStatus(null); setSendMsg("");
+
+    try {
+      await axios.post(`${API}/api/email/send-ad`, {
+        guestName,
+        guestEmail,
+        persona,
+        variantLabel:  labels[selected].title,
+        svgString,
+        formUrl,
+        offer:         analysis?.personalizedOffer || "",
+        roomRec:       analysis?.roomRecommendation || "",
+      }, { timeout: 30000 });
+      setSendStatus("success");
+      setSendMsg("Email sent successfully to " + guestEmail);
+    } catch (err) {
+      setSendStatus("error");
+      setSendMsg(err.response?.data?.error || "Failed to send email. Please try again.");
+    } finally { setSending(false); }
+  }
+  
 
   const persona  = result?.analysis?.persona || "";
   const meta     = result?.metadata || result?.analysis?.metadata || null;
@@ -448,21 +591,7 @@ export default function GuestLookup() {
             </div>
           )}
         </Card>
-
-        {meta?.isGenericEmail && (
-          <Card style={{ marginBottom:18, borderLeft:`3px solid ${C.borderDark}`, paddingLeft:23, background:C.bg }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ color:C.textMid, display:"flex" }}>{Icon.Alert()}</span>
-              <div>
-                <div style={{ fontSize:13, fontWeight:700, color:C.text, marginBottom:3 }}>Limited Public Data Available</div>
-                <div style={{ fontSize:12, color:C.textMid, lineHeight:1.6 }}>
-                  This guest uses a personal email provider, so reliable public profile data couldn't be found. Send the Guest Preference Form below to collect accurate details directly from the guest.
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
-
+        
         {error && (
           <div style={{ padding:"11px 14px", background:C.bg, border:`1px solid ${C.borderDark}`, borderRadius:8, color:C.text, fontSize:13, marginBottom:18, display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ color:C.textMid, display:"flex" }}>{Icon.Alert()}</span> {error}
@@ -472,6 +601,7 @@ export default function GuestLookup() {
         {result && (
           <div style={{ animation:"fadeIn 0.3s ease" }}>
 
+            {/* Persona Banner */}
             <Card style={{ marginBottom:18, borderLeft:`3px solid ${C.text}`, paddingLeft:23 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div>
@@ -491,6 +621,7 @@ export default function GuestLookup() {
               </div>
             </Card>
 
+            {/* Guest Intelligence Profile */}
             {meta && (
               <Card style={{ marginBottom:18 }}>
                 <SectionLabel icon={Icon.Layers()} right={meta.dataSource||"Search Snippets"}>Guest Intelligence Profile</SectionLabel>
@@ -522,6 +653,7 @@ export default function GuestLookup() {
               </Card>
             )}
 
+            {/* Social Profiles + Behaviour Scores */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18, marginBottom:18 }}>
               <Card>
                 <SectionLabel icon={Icon.Globe()}>Social Profiles ({Object.keys(result.profiles).length})</SectionLabel>
@@ -556,6 +688,7 @@ export default function GuestLookup() {
               </Card>
             </div>
 
+            {/* Room / Offer / Staff Note */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:18, marginBottom:18 }}>
               {[
                 { icon:Icon.Bed(),      label:"Room Recommendation", value:result.analysis.roomRecommendation },
@@ -570,6 +703,7 @@ export default function GuestLookup() {
               ))}
             </div>
 
+            {/* Hotel Ad Posters with Email Send */}
             <AdPosters
               persona={persona}
               guestName={result.guest.name}
@@ -579,8 +713,10 @@ export default function GuestLookup() {
               hotelRecommendations={hotels}
             />
 
+            {/* QR Code */}
             <QRCodeSection guest={result.guest} />
 
+            {/* Keywords */}
             {result.analysis.keywords?.length > 0 && (
               <Card>
                 <SectionLabel icon={Icon.Tag()}>Keywords Detected ({result.analysis.keywords.length})</SectionLabel>
