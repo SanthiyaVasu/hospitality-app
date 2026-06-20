@@ -1,11 +1,15 @@
 const axios = require("axios");
 require("dotenv").config();
-
 const SERPAPI_KEY    = process.env.SERPAPI_KEY;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_CSE_ID  = process.env.GOOGLE_CSE_ID;
 const HUNTER_API_KEY = process.env.HUNTER_API_KEY;
 const PDL_API_KEY    = process.env.PDL_API_KEY;
+
+const GENERIC_DOMAINS = [
+  "gmail.com","yahoo.com","hotmail.com","outlook.com",
+  "rediffmail.com","icloud.com","protonmail.com","ymail.com","live.com",
+];
 
 // ── HUNTER.IO ────────────────────────────────────────────────
 async function hunterLookup(email) {
@@ -13,7 +17,6 @@ async function hunterLookup(email) {
   const domain = email.split("@")[1] || "";
   let jobTitle = null, company = null, fullName = null;
   let linkedin = null, twitter = null, emailStatus = null;
-
   try {
     const res = await axios.get("https://api.hunter.io/v2/email-verifier", {
       params: { email, api_key: HUNTER_API_KEY },
@@ -24,7 +27,12 @@ async function hunterLookup(email) {
   } catch (err) {
     console.log("⚠️ Hunter verify error:", err.message);
   }
-
+  // Skip domain search for personal/generic email providers
+  if (GENERIC_DOMAINS.includes(domain.toLowerCase())) {
+    console.log("⚠️ Hunter: skipping domain search for generic email:", domain);
+    if (!emailStatus) return null;
+    return { fullName:null, jobTitle:null, company:null, linkedin:null, twitter:null, emailStatus, source:"Hunter.io" };
+  }
   try {
     const res = await axios.get("https://api.hunter.io/v2/domain-search", {
       params: { domain, api_key: HUNTER_API_KEY, limit: 10 },
@@ -34,7 +42,6 @@ async function hunterLookup(email) {
     company      = data?.organization || null;
     const emails = data?.emails || [];
     console.log("Hunter domain-search emails found:", JSON.stringify(emails.map(e => ({ value: e.value, position: e.position })), null, 2));
-
     const match  = emails.find(e => e.value?.toLowerCase() === email.toLowerCase());
     if (match) {
       console.log("Hunter exact email match object:", JSON.stringify(match, null, 2));
@@ -49,7 +56,6 @@ async function hunterLookup(email) {
   } catch (err) {
     console.log("⚠️ Hunter domain error:", err.message);
   }
-
   if (!emailStatus && !company && !jobTitle) return null;
   return { fullName, jobTitle, company, linkedin, twitter, emailStatus, source: "Hunter.io" };
 }
@@ -65,7 +71,6 @@ async function pdlLookup(email, name) {
       timeout: 8000,
     });
     const d = res.data;
-    console.log("RAW PDL RESPONSE:", JSON.stringify(d, null, 2));
     if (!d || d.status !== 200) return await pdlSearch(email, name);
     console.log("✅ PDL enrichment found:", d.data?.full_name, d.data?.job_title);
     return parsePDLPerson(d.data || d);
@@ -83,11 +88,9 @@ async function pdlSearch(email, name) {
     const lastName       = nameParts.slice(1).join(" ") || "";
     const emailDomain    = email.split("@")[1]?.toLowerCase() || "";
     const domainRoot     = emailDomain.split(".")[0];
-    const genericDomains = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com","icloud.com"];
-    const isGeneric      = genericDomains.includes(emailDomain);
+    const isGeneric      = GENERIC_DOMAINS.includes(emailDomain);
     const commonNames    = ["kumar","raj","sharma","singh","gupta","patel","verma","yadav","mehta","joshi","nair","reddy","iyer"];
     const isCommon       = commonNames.some(n => name.toLowerCase().split(" ").includes(n));
-
     const res = await axios.post(
       "https://api.peopledatalabs.com/v5/person/search",
       {
@@ -103,19 +106,15 @@ async function pdlSearch(email, name) {
       },
       { headers: { "X-Api-Key": PDL_API_KEY, "Content-Type": "application/json" }, timeout: 8000 }
     );
-
     const results = res.data?.data || [];
     if (!results.length) return null;
-
     let person = results.find(p =>
       (p.emails || []).some(e => {
         const addr = typeof e === "string" ? e : (e?.address || e?.value || "");
         return addr.toLowerCase() === email.toLowerCase();
       })
     );
-
     let matchType = null;
-
     if (!person && !isGeneric && domainRoot.length > 2) {
       person = results.find(p =>
         (p.job_company_website || "").toLowerCase().includes(domainRoot) ||
@@ -123,31 +122,23 @@ async function pdlSearch(email, name) {
       );
       if (person) matchType = "domain";
     }
-
     if (!person && !isCommon && !isGeneric) {
       person = results[0];
       matchType = "name-fallback";
     }
-
     if (!person) {
       console.log("PDL: no reliable match for", email);
       return null;
     }
-
     console.log("PDL matched via:", matchType, "→", person.full_name, "|", person.job_title, "|", person.job_company_name);
-
     const parsed = parsePDLPerson(person);
-
-    // Only trust location/age if match was via verified domain — name-fallback matches
-    // are too risky for personal fields like location and birth year
     if (matchType !== "domain") {
       parsed.location  = null;
       parsed.country   = null;
       parsed.age       = null;
       parsed.birthYear = null;
-      console.log("PDL match was name-fallback only — discarding location/age (too risky)");
+      console.log("PDL match was name-fallback — discarding location/age");
     }
-
     return parsed;
   } catch (err) {
     console.log("⚠️ PDL search error:", err.message);
@@ -189,7 +180,9 @@ function buildMetadataFromAPIs(pdlData, hunterData) {
   if (!pdlData && !hunterData) return null;
   const d = pdlData    || {};
   const h = hunterData || {};
-
+  // Don't use generic email provider name as company
+  const GENERIC_COMPANY_NAMES = ["Gmail","Yahoo","Hotmail","Outlook","iCloud","ProtonMail"];
+  const cleanCompany = (h.company && !GENERIC_COMPANY_NAMES.includes(h.company)) ? h.company : null;
   function estimateSalary(seniority, yearsExp) {
     const map = {
       cxo: "₹40+ LPA", vp: "₹30–50 LPA", director: "₹25–40 LPA",
@@ -202,11 +195,9 @@ function buildMetadataFromAPIs(pdlData, hunterData) {
     if (yearsExp >= 10) return { range: "₹15–30 LPA", source: "years of experience" };
     if (yearsExp >= 5)  return { range: "₹8–18 LPA",  source: "years of experience" };
     if (yearsExp >= 2)  return { range: "₹4–9 LPA",   source: "years of experience" };
-    return { range: "₹3–6 LPA", source: "entry level estimate" };
+    return { range: null, source: null }; // don't guess if no data
   }
-
   const salary = estimateSalary(d.jobSeniority, d.yearsExperience);
-
   return {
     fullName:         d.fullName     || h.fullName     || null,
     age:              d.age          || null,
@@ -220,7 +211,7 @@ function buildMetadataFromAPIs(pdlData, hunterData) {
     country:          d.country      || null,
     locationSource:   d.location     ? "People Data Labs" : null,
     profession:       d.jobTitle     || h.jobTitle     || null,
-    company:          d.jobCompany   || h.company      || null,
+    company:          d.jobCompany   || cleanCompany   || null,
     seniority:        d.jobSeniority || null,
     industry:         d.industry     || null,
     jobRole:          d.jobRole      || null,
@@ -297,33 +288,26 @@ function detectPlatform(url) {
 // ── Validate that a profile URL actually belongs to this person ──
 function isValidProfileUrl(url, name, email) {
   if (!url) return false;
+  const urlLower = url.toLowerCase();
+  // Reject LinkedIn directory pages — not real profiles
+  if (urlLower.includes("linkedin.com/pub/dir")) {
+    console.log("⚠️ Rejected LinkedIn directory page:", url);
+    return false;
+  }
   const local     = email.split("@")[0].toLowerCase().replace(/[._-]/g, "");
   const nameParts = name.toLowerCase().split(" ").filter(p => p.length > 2);
-  const urlLower  = url.toLowerCase();
-
-  // Extract username from URL
   let username = "";
   if (urlLower.includes("linkedin.com/in/")) username = urlLower.split("linkedin.com/in/")[1]?.split("/")[0] || "";
   else if (urlLower.includes("github.com/"))  username = urlLower.split("github.com/")[1]?.split("/")[0] || "";
   else if (urlLower.includes("twitter.com/")) username = urlLower.split("twitter.com/")[1]?.split("/")[0] || "";
   else if (urlLower.includes("x.com/"))       username = urlLower.split("x.com/")[1]?.split("/")[0] || "";
   else if (urlLower.includes("medium.com/@")) username = urlLower.split("medium.com/@")[1]?.split("/")[0] || "";
-  else return true; // for platforms like reddit, tripadvisor — accept
-
+  else return true;
   if (!username || username.length < 2) return false;
-
-  // Clean username
   const cleanUsername = username.replace(/[._-]/g, "");
-
-  // Check 1: username contains email local part
   if (cleanUsername.includes(local) || local.includes(cleanUsername)) return true;
-
-  // Check 2: username contains any part of name
   if (nameParts.some(part => cleanUsername.includes(part))) return true;
-
-  // Check 3: email local part contains username
   if (local.includes(cleanUsername.substring(0, 5))) return true;
-
   console.log("⚠️ Rejected profile URL (name mismatch):", url, "| username:", username, "| expected:", local);
   return false;
 }
@@ -348,7 +332,6 @@ function extractAge(textArray) {
   const combined = textArray.join(" ");
   const currentYear = new Date().getFullYear();
   let estimatedAge = null, ageSource = null;
-
   const bornMatch = combined.match(/\bborn\s+(?:in\s+)?(\d{4})\b/i);
   if (bornMatch) {
     const y = parseInt(bornMatch[1]);
@@ -369,12 +352,10 @@ function extractAge(textArray) {
     }
   }
   if (estimatedAge && (estimatedAge < 20 || estimatedAge > 65)) { estimatedAge = null; ageSource = null; }
-
   const ageRange = estimatedAge
     ? estimatedAge < 25 ? "18-24" : estimatedAge < 35 ? "25-34"
       : estimatedAge < 45 ? "35-44" : estimatedAge < 55 ? "45-54" : "55+"
     : null;
-
   return { age: estimatedAge, ageRange, ageSource };
 }
 
@@ -392,9 +373,9 @@ function extractSalaryEstimate(textArray) {
       { patterns: ["ceo","founder","co-founder","managing director"], range: "₹40+ LPA",   level: "C-Suite" },
       { patterns: ["cto","cfo","vp ","vice president","director"],    range: "₹30–50 LPA", level: "Senior Executive" },
       { patterns: ["senior manager","principal","staff engineer"],     range: "₹20–35 LPA", level: "Senior Manager" },
-      { patterns: ["manager","team lead","senior software"],          range: "₹12–22 LPA", level: "Manager" },
-      { patterns: ["software engineer","developer","analyst"],        range: "₹6–15 LPA",  level: "Mid-Level" },
-      { patterns: ["junior","fresher","trainee","intern"],            range: "₹2–6 LPA",   level: "Entry Level" },
+      { patterns: ["manager","team lead","senior software"],           range: "₹12–22 LPA", level: "Manager" },
+      { patterns: ["software engineer","developer","analyst"],         range: "₹6–15 LPA",  level: "Mid-Level" },
+      { patterns: ["junior","fresher","trainee","intern"],             range: "₹2–6 LPA",   level: "Entry Level" },
     ];
     for (const { patterns, range, level } of titleMap) {
       if (patterns.some(p => combined.includes(p))) { salaryRange = range; salarySource = `estimated from job title (${level})`; break; }
@@ -406,22 +387,50 @@ function extractSalaryEstimate(textArray) {
     if (premium.some(c => combined.includes(c))) { salaryRange = "₹25–60 LPA"; salarySource = "premium company"; }
     else if (mid.some(c => combined.includes(c))) { salaryRange = "₹6–20 LPA"; salarySource = "IT services company"; }
   }
-  return { salaryRange: salaryRange || "Unknown", salarySource };
+  return { salaryRange: salaryRange || null, salarySource };
 }
 
+// ── FIX: extractLocation — Indian cities prioritized, returns null not "Unknown" ──
 function extractLocation(textArray) {
+  if (!textArray || textArray.length === 0) return { city: null, source: null };
   const combined = textArray.join(" ");
-  const locMatch = combined.match(/(?:based\s+in|located\s+in|living\s+in|location\s*:?\s*|from\s+)\s*([A-Z][a-zA-Z\s,]+?)(?:\s*[|\·•]|\s*\n|$)/i);
-  if (locMatch && locMatch[1].length < 50) return { city: locMatch[1].trim(), source: "explicit mention" };
-  const cities = [
-    "Mumbai","Delhi","Bangalore","Bengaluru","Hyderabad","Chennai","Kolkata","Pune",
-    "Ahmedabad","Jaipur","Coimbatore","New York","London","Singapore","Dubai",
-    "San Francisco","Seattle","Toronto","Sydney","Berlin",
+
+  // Priority 1 — explicit location patterns
+  const locPatterns = [
+    /(?:based\s+in|located\s+in|living\s+in|location\s*:?\s*)\s*([A-Z][a-zA-Z\s]+?)(?:\s*[|\·•,]|\s*\n|$)/i,
+    /([A-Z][a-zA-Z]+(?:,\s*[A-Z][a-zA-Z]+)?)\s*(?:India|Karnataka|Tamil Nadu|Maharashtra|Telangana|Kerala|Gujarat)/i,
   ];
-  for (const city of cities) {
+  for (const pattern of locPatterns) {
+    const match = combined.match(pattern);
+    if (match && match[1].length < 40) {
+      const city = match[1].trim().replace(/[,.]$/, "");
+      if (city.length > 2) return { city, source: "explicit mention" };
+    }
+  }
+
+  // Priority 2 — Indian cities FIRST (more relevant for Indian profiles)
+  const indianCities = [
+    "Bengaluru","Bangalore","Mumbai","Delhi","New Delhi","Hyderabad","Chennai",
+    "Kolkata","Pune","Ahmedabad","Jaipur","Coimbatore","Surat","Lucknow",
+    "Nagpur","Indore","Bhopal","Kochi","Visakhapatnam","Tiruppur","Salem",
+    "Madurai","Trichy","Vellore","Erode","Tirunelveli","Mysuru","Mysore",
+    "Mangaluru","Hubli","Belgaum","Tumkur","Davangere","Shimoga",
+  ];
+  for (const city of indianCities) {
     if (combined.includes(city)) return { city, source: "city name detected" };
   }
-  return { city: "Unknown", source: null };
+
+  // Priority 3 — International cities (only if no Indian city found)
+  const intlCities = [
+    "London","Singapore","Dubai","Toronto","Sydney","Berlin","Tokyo",
+    "New York","San Francisco","Seattle","Austin","Boston","Chicago",
+    "San Jose","Los Angeles","Houston","Phoenix","Atlanta",
+  ];
+  for (const city of intlCities) {
+    if (combined.includes(city)) return { city, source: "city name detected" };
+  }
+
+  return { city: null, source: null }; // return null not "Unknown"
 }
 
 function extractLifestyle(textArray) {
@@ -455,55 +464,67 @@ function extractLifestyle(textArray) {
 function extractProfession(textArray) {
   const combined = textArray.join(" ").toLowerCase();
   const profMap  = [
-    { pattern: /\b(ceo|chief executive|founder|co-founder)\b/i,            role: "CEO/Founder",         seniority: "C-Suite"          },
-    { pattern: /\b(cto|cfo|coo|chief\s+\w+\s+officer)\b/i,                role: "C-Suite Executive",    seniority: "C-Suite"          },
-    { pattern: /\b(vice\s+president|vp\s+of|director\s+of)\b/i,           role: "VP/Director",          seniority: "Senior Executive"  },
-    { pattern: /\b(senior\s+manager|principal\s+\w+|staff\s+engineer)\b/i, role: "Senior Manager",       seniority: "Senior"           },
-    { pattern: /\b(manager|team\s+lead|lead\s+\w+)\b/i,                   role: "Manager/Lead",         seniority: "Mid-Senior"       },
-    { pattern: /\b(software\s+engineer|developer|programmer|sde)\b/i,     role: "Software Engineer",    seniority: "Mid-Level"        },
-    { pattern: /\b(data\s+scientist|ml\s+engineer|ai\s+engineer)\b/i,     role: "Data/AI Engineer",     seniority: "Mid-Level"        },
-    { pattern: /\b(doctor|physician|surgeon|medical)\b/i,                 role: "Medical Professional", seniority: "Professional"     },
-    { pattern: /\b(lawyer|attorney|advocate|legal)\b/i,                   role: "Legal Professional",   seniority: "Professional"     },
-    { pattern: /\b(professor|lecturer|researcher|scientist)\b/i,          role: "Academic/Researcher",  seniority: "Professional"     },
-    { pattern: /\b(analyst|consultant|specialist)\b/i,                    role: "Analyst/Consultant",   seniority: "Mid-Level"        },
-    { pattern: /\b(intern|trainee|fresher|junior)\b/i,                    role: "Entry Level/Intern",   seniority: "Junior"           },
-    { pattern: /\b(student|undergraduate|postgraduate|phd)\b/i,           role: "Student",              seniority: "Student"          },
+    { pattern: /\b(ceo|chief executive|founder|co-founder)\b/i,            role: "CEO/Founder",         seniority: "C-Suite"         },
+    { pattern: /\b(cto|cfo|coo|chief\s+\w+\s+officer)\b/i,                role: "C-Suite Executive",    seniority: "C-Suite"         },
+    { pattern: /\b(vice\s+president|vp\s+of|director\s+of)\b/i,           role: "VP/Director",          seniority: "Senior Executive" },
+    { pattern: /\b(senior\s+manager|principal\s+\w+|staff\s+engineer)\b/i, role: "Senior Manager",       seniority: "Senior"          },
+    { pattern: /\b(manager|team\s+lead|lead\s+\w+)\b/i,                   role: "Manager/Lead",         seniority: "Mid-Senior"      },
+    { pattern: /\b(software\s+engineer|developer|programmer|sde)\b/i,     role: "Software Engineer",    seniority: "Mid-Level"       },
+    { pattern: /\b(data\s+scientist|ml\s+engineer|ai\s+engineer)\b/i,     role: "Data/AI Engineer",     seniority: "Mid-Level"       },
+    { pattern: /\b(doctor|physician|surgeon|medical)\b/i,                 role: "Medical Professional", seniority: "Professional"    },
+    { pattern: /\b(lawyer|attorney|advocate|legal)\b/i,                   role: "Legal Professional",   seniority: "Professional"    },
+    { pattern: /\b(professor|lecturer|researcher|scientist)\b/i,          role: "Academic/Researcher",  seniority: "Professional"    },
+    { pattern: /\b(analyst|consultant|specialist)\b/i,                    role: "Analyst/Consultant",   seniority: "Mid-Level"       },
+    { pattern: /\b(intern|trainee|fresher|junior)\b/i,                    role: "Entry Level/Intern",   seniority: "Junior"          },
+    { pattern: /\b(student|undergraduate|postgraduate|phd)\b/i,           role: "Student",              seniority: "Student"         },
   ];
   for (const { pattern, role, seniority } of profMap) {
     if (pattern.test(combined)) return { role, seniority };
   }
-  return { role: "Professional", seniority: "Unknown" };
+  return { role: null, seniority: null }; // return null not "Professional/Unknown"
 }
 
 // ── MAIN SEARCH FUNCTION ─────────────────────────────────────
 async function searchGuest(email, name) {
-  const local = email.split("@")[0];
-  const start = Date.now();
-
-  // ── Generic email providers — skip risky web search entirely ──
-  const GENERIC_DOMAINS = ["gmail.com","yahoo.com","hotmail.com","outlook.com",
-                            "rediffmail.com","icloud.com","protonmail.com","ymail.com","live.com"];
+  const local       = email.split("@")[0];
   const emailDomain = email.split("@")[1]?.toLowerCase() || "";
+  const start       = Date.now();
 
+  // Generic email providers — skip web search (too many wrong people)
   if (GENERIC_DOMAINS.includes(emailDomain)) {
-    console.log("Generic email provider detected — skipping web search to avoid wrong-person data:", emailDomain);
+    console.log("Generic email — skipping web search to avoid wrong-person data:", emailDomain);
+    // Still try PDL/Hunter — PDL may have the person by email
+    console.log("Calling Hunter.io + PDL APIs...");
+    const [pdlResult, hunterResult] = await Promise.allSettled([
+      pdlLookup(email, name),
+      hunterLookup(email),
+    ]);
+    const pdlData    = pdlResult.status    === "fulfilled" ? pdlResult.value    : null;
+    const hunterData = hunterResult.status === "fulfilled" ? hunterResult.value : null;
+    const apiMeta    = buildMetadataFromAPIs(pdlData, hunterData);
+    console.log("PDL:", pdlData ? "Found" : "Not found");
+    console.log("Hunter:", hunterData ? "Found" : "Not found");
+    console.log("Total time:", Date.now() - start, "ms");
     return {
       found: {},
       scrapedData: {},
       snippets: [],
-      metadata: {
-        fullName: null,
-        age: null, ageRange: null, ageSource: null,
-        location: "Unknown", locationSource: null,
+      metadata: apiMeta ? {
+        ...apiMeta,
+        lifestyle: [], travelFrequency: "Occasional", spendingLevel: "Mid-Range",
+        dataSource: apiMeta.dataSource || "API only",
+        isGenericEmail: true,
+      } : {
+        fullName: null, age: null, ageRange: null, ageSource: null,
+        location: null, locationSource: null,
         profession: null, company: null, seniority: null, industry: null,
-        salary: "Unknown", salarySource: null,
+        salary: null, salarySource: null,
         skills: [], education: [], pastCompanies: [],
-        lifestyle: [], travelFrequency: "Unknown", spendingLevel: "Unknown",
-        dataSource: "Limited — generic email provider",
+        lifestyle: [], travelFrequency: null, spendingLevel: null,
+        dataSource: "Limited — personal email address",
         isGenericEmail: true,
       },
-      pdlData: null,
-      hunterData: null,
+      pdlData, hunterData,
     };
   }
 
@@ -516,38 +537,30 @@ async function searchGuest(email, name) {
   const pdlData     = pdlResult.status    === "fulfilled" ? pdlResult.value    : null;
   const hunterData  = hunterResult.status === "fulfilled" ? hunterResult.value : null;
   const apiMetadata = buildMetadataFromAPIs(pdlData, hunterData);
-
   console.log("PDL:", pdlData ? "Found" : "Not found");
   console.log("Hunter:", hunterData ? "Found" : "Not found");
 
   // STEP 2 — Smarter search queries
   const queries = [
-    // Most specific — email + platform
     `"${email}" site:linkedin.com/in`,
     `"${email}" site:github.com`,
     `"${email}" site:twitter.com OR site:x.com`,
-    // Name + company domain (e.g. arival.ai)
     `"${name}" site:linkedin.com/in "${email.split("@")[1]}"`,
-    // Fallback — email general search
     `"${email}"`,
-    // Name-based fallback
     `"${name}" "${local}" linkedin profile`,
     `"${name}" "${local}" github`,
   ];
-
   console.log("Running " + queries.length + " searches in parallel...");
   const allResults = await Promise.allSettled(queries.map(q => googleSearch(q)));
   console.log("Searches done in " + (Date.now() - start) + "ms");
 
   const found       = {};
   const allSnippets = [];
-
   for (const result of allResults) {
     if (result.status !== "fulfilled") continue;
     for (const r of result.value) {
       if (!r.url) continue;
       const platform = detectPlatform(r.url);
-      // Only add if URL passes name/email validation
       if (platform && !found[platform] && isValidProfileUrl(r.url, name, email)) {
         found[platform] = r.url;
         console.log("Profile accepted:", platform, "→", r.url);
@@ -557,33 +570,21 @@ async function searchGuest(email, name) {
     }
   }
 
-  // STEP 3 — Add verified API profile URLs (highest priority — override search results)
-  if (apiMetadata?.linkedinFromAPI) {
-    found.linkedin = apiMetadata.linkedinFromAPI;
-    console.log("LinkedIn from PDL/Hunter:", apiMetadata.linkedinFromAPI);
-  }
-  if (apiMetadata?.twitterFromAPI) {
-    found.twitter = apiMetadata.twitterFromAPI;
-    console.log("Twitter from PDL/Hunter:", apiMetadata.twitterFromAPI);
-  }
-  if (apiMetadata?.githubFromAPI) {
-    found.github = apiMetadata.githubFromAPI;
-    console.log("GitHub from PDL/Hunter:", apiMetadata.githubFromAPI);
-  }
-
+  // STEP 3 — Add verified API profile URLs
+  if (apiMetadata?.linkedinFromAPI && !found.linkedin) found.linkedin = apiMetadata.linkedinFromAPI;
+  if (apiMetadata?.twitterFromAPI  && !found.twitter)  found.twitter  = apiMetadata.twitterFromAPI;
+  if (apiMetadata?.githubFromAPI   && !found.github)   found.github   = apiMetadata.githubFromAPI;
   console.log("Final profiles: " + (Object.keys(found).join(", ") || "none"));
 
   // STEP 4 — Scrape non-blocked profiles
   const BLOCKED     = ["linkedin", "instagram", "facebook", "twitter"];
   const scrapedData = {};
-
   const scrapePromises = Object.entries(found)
     .filter(([platform]) => !BLOCKED.includes(platform))
     .map(async ([platform, url]) => {
       const text = await scrapeUrl(url);
       if (text) scrapedData[platform] = text;
     });
-
   if (found.reddit) {
     scrapePromises.push((async () => {
       try {
@@ -601,20 +602,16 @@ async function searchGuest(email, name) {
       } catch {}
     })());
   }
-
   await Promise.allSettled(scrapePromises);
 
   // STEP 5 — Build metadata
   const allText = [...allSnippets, ...Object.values(scrapedData)];
 
-  // Filter snippets to only those relevant to this specific guest
-  // (mentions their name, email domain, or company) — avoids picking up
-  // unrelated people/places from generic search results
-  const emailDomainRoot = email.split("@")[1]?.split(".")[0]?.toLowerCase() || "";
+  // Only use snippets relevant to this person
+  const emailDomainRoot = emailDomain.split(".")[0]?.toLowerCase() || "";
   const nameWords       = (name || "").toLowerCase().split(" ").filter(p => p.length > 2);
   const companyLower    = (apiMetadata?.company || "").toLowerCase();
-
-  const relevantText = allText.filter(s => {
+  const relevantText    = allText.filter(s => {
     const sl = s.toLowerCase();
     if (emailDomainRoot.length > 3 && sl.includes(emailDomainRoot)) return true;
     if (companyLower && companyLower.length > 2 && sl.includes(companyLower)) return true;
@@ -622,12 +619,11 @@ async function searchGuest(email, name) {
     return false;
   });
 
-  // Use relevant text when available, fall back to full text only if nothing relevant found
   const textForExtraction = relevantText.length > 0 ? relevantText : allText;
-
   const ageData       = extractAge(textForExtraction);
   const salaryData    = extractSalaryEstimate(textForExtraction);
-  const locationData  = extractLocation(relevantText.length > 0 ? relevantText : []); // location: only trust relevant snippets, else Unknown
+  // ✅ FIX: location only from relevant snippets — avoids San Jose from unrelated results
+  const locationData  = extractLocation(relevantText.length > 0 ? relevantText : []);
   const lifestyleData = extractLifestyle(allText);
   const profData      = extractProfession(textForExtraction);
 
@@ -638,23 +634,21 @@ async function searchGuest(email, name) {
       age:             apiMetadata.age      || ageData.age,
       ageRange:        apiMetadata.ageRange || ageData.ageRange,
       ageSource:       apiMetadata.ageSource || (ageData.ageSource ? ageData.ageSource + " (estimated)" : null),
-      salary:          apiMetadata.salary      || salaryData.salaryRange,
-      salarySource:    apiMetadata.salarySource || (salaryData.salarySource ? salaryData.salarySource + " (estimated)" : null),
-      location:        apiMetadata.location     || locationData.city,
+      // ✅ FIX: location from relevant snippets only, never from unrelated results
+      location:        apiMetadata.location  || locationData.city || null,
       locationSource:  apiMetadata.locationSource || (locationData.source ? locationData.source + " (estimated)" : null),
-      profession:      apiMetadata.profession   || profData.role,
-      seniority:       apiMetadata.seniority    || profData.seniority,
+      salary:          apiMetadata.salary    || salaryData.salaryRange || null,
+      salarySource:    apiMetadata.salarySource || (salaryData.salarySource ? salaryData.salarySource + " (estimated)" : null),
+      profession:      apiMetadata.profession || profData.role || null,
+      seniority:       apiMetadata.seniority  || profData.seniority || null,
       lifestyle:       lifestyleData.lifestyleSignals,
       travelFrequency: lifestyleData.travelFrequency,
       spendingLevel:   lifestyleData.spendingLevel,
     };
-
-    // Fix salary from profession if missing
-    // Fix salary from profession — match by keyword, not exact string
+    // Fix salary from profession
     if (metadata.profession) {
       const profLower = metadata.profession.toLowerCase();
       let mapped = null;
-
       if (profLower.includes("ceo") || profLower.includes("founder"))
         mapped = { salary: "₹40+ LPA", src: "estimated from CEO/Founder title" };
       else if (profLower.includes("cto") || profLower.includes("cfo") || profLower.includes("coo"))
@@ -669,7 +663,6 @@ async function searchGuest(email, name) {
         mapped = { salary: "₹6–15 LPA", src: "estimated from Software Engineer title" };
       else if (profLower.includes("data") || profLower.includes("ai engineer"))
         mapped = { salary: "₹8–20 LPA", src: "estimated from Data/AI Engineer title" };
-
       if (mapped && (!metadata.salary || metadata.salary === "Unknown" || (metadata.salarySource || "").includes("entry level"))) {
         metadata.salary       = mapped.salary;
         metadata.salarySource = mapped.src;
@@ -681,12 +674,12 @@ async function searchGuest(email, name) {
       age:             ageData.age,
       ageRange:        ageData.ageRange,
       ageSource:       ageData.ageSource ? ageData.ageSource + " (estimated)" : null,
-      salary:          salaryData.salaryRange,
+      salary:          salaryData.salaryRange || null,
       salarySource:    salaryData.salarySource ? salaryData.salarySource + " (estimated)" : null,
-      location:        locationData.city,
+      location:        locationData.city || null,
       locationSource:  locationData.source ? locationData.source + " (estimated)" : null,
-      profession:      profData.role,
-      seniority:       profData.seniority,
+      profession:      profData.role || null,
+      seniority:       profData.seniority || null,
       lifestyle:       lifestyleData.lifestyleSignals,
       travelFrequency: lifestyleData.travelFrequency,
       spendingLevel:   lifestyleData.spendingLevel,
@@ -694,7 +687,7 @@ async function searchGuest(email, name) {
     };
   }
 
-  console.log("Total time: " + (Date.now() - start) + "ms");
+  console.log("Total time:", Date.now() - start, "ms");
   return { found, scrapedData, snippets: allSnippets, metadata, pdlData, hunterData };
 }
 
