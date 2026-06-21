@@ -82,6 +82,7 @@ router.post("/lookup", async (req, res) => {
       allText.length > 0 ? allText : [name, emailLocal],
       metadata
     );
+    console.log("Email variable type:", typeof email, "| value:", JSON.stringify(email));
     // Check if this guest has stayed beforconsole.log("Checking stay history for:", email);
 let stayHistory = [];
 try {
