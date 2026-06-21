@@ -82,13 +82,16 @@ router.post("/lookup", async (req, res) => {
       allText.length > 0 ? allText : [name, emailLocal],
       metadata
     );
-    console.log("Email variable type:", typeof email, "| value:", JSON.stringify(email));
-    // Check if this guest has stayed beforconsole.log("Checking stay history for:", email);
+    // Check if this guest has stayed before
+const cleanEmail = email.trim().toLowerCase();
+console.log("Checking stay history for raw email:", JSON.stringify(email));
+console.log("Checking stay history for cleaned email:", JSON.stringify(cleanEmail));
+
 let stayHistory = [];
 try {
   const stayHistoryResult = await pool.query(
-    "SELECT * FROM guest_stay_history WHERE LOWER(email) = LOWER($1) ORDER BY check_in_date DESC",
-    [email]
+    "SELECT * FROM guest_stay_history WHERE LOWER(TRIM(email)) = $1 ORDER BY check_in_date DESC",
+    [cleanEmail]
   );
   stayHistory = stayHistoryResult.rows;
   console.log("Stay history found:", stayHistory.length, "records");
