@@ -106,6 +106,10 @@ function downloadSVG(svgEl, filename) {
 }
 
 // ── Ad Posters with Email Send ────────────────────────────────
+// This component owns ALL the state and logic for selecting a poster
+// and emailing it — guestName/guestEmail/persona/meta/analysis are
+// passed in as props from GuestLookup, so there is no need (and no way)
+// for GuestLookup itself to reference "selected", "active", etc.
 function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecommendations }) {
   const [selected,    setSelected]    = useState(null);
   const [sending,     setSending]     = useState(false);
@@ -143,15 +147,15 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
 
     try {
       await axios.post(`${API}/api/email/send-ad`, {
-  guestName,
-  guestEmail,
-  persona,
-  variantLabel:  labels[selected].title,
-  svgString,
-  formUrl,
-  offer:         analysis?.personalizedOffer || "",
-  roomRec:       analysis?.roomRecommendation || "",
-}, { timeout: 30000 }); // 30 seconds timeout
+        guestName,
+        guestEmail,
+        persona,
+        variantLabel:  labels[selected].title,
+        svgString,
+        formUrl,
+        offer:         analysis?.personalizedOffer || "",
+        roomRec:       analysis?.roomRecommendation || "",
+      }, { timeout: 30000 }); // 30 seconds timeout
       setSendStatus("success");
       setSendMsg("Email sent successfully to " + guestEmail);
     } catch (err) {
@@ -381,9 +385,10 @@ function QRCodeSection({ guest }) {
     </Card>
   );
 }
+
 function StayHistoryBanner({ stays }) {
   if (!stays || stays.length === 0) return null;
-  const totalSpent = stays.reduce((sum, s) => sum + parseFloat(s.amount_spent || 0), 0);
+  const totalSpent  = stays.reduce((sum, s) => sum + parseFloat(s.amount_spent || 0), 0);
   const totalPoints = stays.reduce((sum, s) => sum + (s.loyalty_points || 0), 0);
 
   return (
@@ -398,30 +403,30 @@ function StayHistoryBanner({ stays }) {
 
       <div style={{ display:"flex", gap:20, marginBottom:16, fontSize:12, color:C.textMid }}>
         <span><strong style={{ color:C.text }}>Total Spent:</strong> ₹{totalSpent.toLocaleString("en-IN")}</span>
-        <span><strong style={{ color:C.text }}>Total Nights:</strong> {stays.reduce((s,x)=>s+x.nights_stayed,0)}</span>
+        <span><strong style={{ color:C.text }}>Total Nights:</strong> {stays.reduce((s,x)=>s+(x.nights_stayed||0),0)}</span>
       </div>
 
       {stays.map((s, i) => (
         <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:10, padding:"10px 0", borderTop:i>0?`1px solid ${C.divider}`:"none" }}>
           <div>
             <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Check-In</div>
-            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{new Date(s.check_in_date).toLocaleDateString("en-IN", {day:"numeric",month:"short",year:"numeric"})}</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.check_in_date ? new Date(s.check_in_date).toLocaleDateString("en-IN", {day:"numeric",month:"short",year:"numeric"}) : "—"}</div>
           </div>
           <div>
             <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Nights</div>
-            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.nights_stayed}</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.nights_stayed ?? "—"}</div>
           </div>
           <div>
             <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Room Type</div>
-            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.room_type}</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.room_type || "—"}</div>
           </div>
           <div>
             <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Persona</div>
-            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.persona}</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.persona || "—"}</div>
           </div>
           <div>
             <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Amount</div>
-            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>₹{parseFloat(s.amount_spent).toLocaleString("en-IN")}</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>₹{parseFloat(s.amount_spent || 0).toLocaleString("en-IN")}</div>
           </div>
         </div>
       ))}
@@ -429,14 +434,25 @@ function StayHistoryBanner({ stays }) {
   );
 }
 
+const STEPS = [
+  "Searching email across platforms...",
+  "Querying Hunter.io & People Data Labs...",
+  "Extracting profile metadata...",
+  "Running NLP behavioural analysis...",
+  "Generating guest intelligence report...",
+  "Saving record to database...",
+];
+
 export default function GuestLookup() {
   const [form,    setForm]    = useState({ name:"", email:"" });
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState("");
   const [step,    setStep]    = useState("");
+
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) return;
     setLoading(true); setError(""); setResult(null); setStep(STEPS[0]);
     let stepIdx = 0;
     const stepTimer = setInterval(() => {
@@ -455,160 +471,12 @@ export default function GuestLookup() {
     }
   }
 
-  const STEPS = [
-    "Searching email across platforms...",
-    "Querying Hunter.io & People Data Labs...",
-    "Extracting profile metadata...",
-    "Running NLP behavioural analysis...",
-    "Generating guest intelligence report...",
-    "Saving record to database...",
-  ];
-
-  async function handleSendEmail() {
-    if (!active) { setEmailError("Please select a variant first."); return; }
-    setSending(true); setEmailError(""); setEmailSent(false);
-    try {
-      const formUrl = `https://hospitality-app-1.onrender.com/preferences?name=${encodeURIComponent(guestName)}&email=${encodeURIComponent(guestEmail)}`;
-
-      const variantLabels = {
-        1: "Personalised Offer",
-        2: "Room Recommendation",
-        3: "Exclusive Deal",
-      };
-      
-      const personaKey = (persona||"").toLowerCase().replace(" traveler","").trim();
-      const themes = {
-        luxury:   {bg1:"#1a1208",bg2:"#3d2b0e",accent:"#c9a84c"},
-        business: {bg1:"#0d1520",bg2:"#1a2d42",accent:"#5b8fc9"},
-        leisure:  {bg1:"#0d1f18",bg2:"#163325",accent:"#4caf7d"},
-        adventure:{bg1:"#1a0e06",bg2:"#3d2010",accent:"#d4693a"},
-        family:   {bg1:"#0f1625",bg2:"#1e2d4a",accent:"#7b9fd4"},
-        food:     {bg1:"#1a0808",bg2:"#3d1010",accent:"#d45b5b"},
-        eco:      {bg1:"#0a1a0d",bg2:"#14321a",accent:"#5bbf6e"},
-        arts:     {bg1:"#16091a",bg2:"#2d1035",accent:"#a06cc9"},
-        sports:   {bg1:"#0d1a0d",bg2:"#1a3318",accent:"#6cbf5b"},
-        default:  {bg1:"#111111",bg2:"#2a2a2a",accent:"#aaaaaa"},
-      };
-      const t   = themes[personaKey] || themes.default;
-      const offer   = analysis?.personalizedOffer  || "Exclusive welcome package";
-      const roomRec = analysis?.roomRecommendation || "Premium room selected";
-      const headlines = {
-        1: { h1:"We Found Your",                          h2:"Perfect Hotel."    },
-        2: { h1:"The Best Room",                          h2:"In The House."     },
-        3: { h1:(guestName||"Guest").split(" ")[0]+",",   h2:"Your Stay Is Ready." },
-      };
-      const hl  = headlines[active] || headlines[1];
-      const loc = (meta?.location && meta.location !== "Unknown") ? meta.location : "";
-      const fn  = (guestName||"Guest").split(" ")[0];
-
-      // Build SVG string
-      const svgString = [
-        `<svg viewBox="0 0 420 220" xmlns="http://www.w3.org/2000/svg" width="840" height="440">`,
-        `<defs>`,
-        `<linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">`,
-        `<stop offset="0%" stop-color="${t.bg1}"/>`,
-        `<stop offset="100%" stop-color="${t.bg2}"/>`,
-        `</linearGradient>`,
-        `<clipPath id="c"><rect width="420" height="220" rx="10"/></clipPath>`,
-        `</defs>`,
-        `<g clip-path="url(#c)">`,
-        `<rect width="420" height="220" fill="url(#g)"/>`,
-        `<circle cx="340" cy="30" r="90" fill="${t.accent}" opacity="0.07"/>`,
-        `<circle cx="380" cy="120" r="55" fill="${t.accent}" opacity="0.05"/>`,
-        `<rect x="0" y="0" width="5" height="220" fill="${t.accent}" opacity="0.9"/>`,
-        `<text x="18" y="38" font-size="11" font-weight="500" fill="${t.accent}" font-family="Helvetica Neue,sans-serif" opacity="0.85" font-style="italic">Hey ${fn},</text>`,
-        `<text x="18" y="66" font-size="23" font-weight="800" fill="#ffffff" font-family="Helvetica Neue,sans-serif">${hl.h1}</text>`,
-        `<text x="18" y="94" font-size="23" font-weight="800" fill="${t.accent}" font-family="Helvetica Neue,sans-serif">${hl.h2}</text>`,
-        `<line x1="18" y1="106" x2="220" y2="106" stroke="${t.accent}" stroke-width="0.6" opacity="0.3"/>`,
-        `<text x="18" y="124" font-size="11" font-weight="700" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.95">${persona||""}</text>`,
-        `<rect x="18" y="134" width="260" height="36" rx="5" fill="#ffffff" opacity="0.06"/>`,
-        `<text x="28" y="148" font-size="7.5" font-weight="700" fill="${t.accent}" font-family="Helvetica Neue,sans-serif" letter-spacing="0.1em" opacity="0.8">SPECIAL OFFER</text>`,
-        `<text x="28" y="162" font-size="9" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.72">${(offer||"").slice(0,50)}</text>`,
-        loc ? `<line x1="18" y1="180" x2="420" y2="180" stroke="#ffffff" stroke-width="0.4" opacity="0.1"/>` : "",
-        loc ? `<text x="18" y="194" font-size="9" fill="#ffffff" font-family="Helvetica Neue,sans-serif" opacity="0.5">Location: ${loc}</text>` : "",
-        `<rect x="306" y="188" width="108" height="24" rx="5" fill="${t.accent}" opacity="0.95"/>`,
-        `<text x="360" y="203" font-size="10" font-weight="700" fill="${t.bg1}" font-family="Helvetica Neue,sans-serif" text-anchor="middle">View Offer</text>`,
-        `<rect x="0" y="215" width="420" height="5" fill="${t.accent}" opacity="0.2"/>`,
-        `</g></svg>`,
-      ].join("\n");
-
-      // Try to get QR code — if it fails use null
-      let qrDataUrl = null;
-      try {
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(formUrl)}&bgcolor=ffffff&color=1c1917&margin=4`;
-        const qrRes = await fetch(qrUrl);
-        if (qrRes.ok) {
-          const qrBlob = await qrRes.blob();
-          qrDataUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(qrBlob);
-          });
-        }
-      } catch (qrErr) {
-        console.log("QR fetch failed, sending without QR:", qrErr.message);
-      }
-
-      // Send email
-      const res = await axios.post(`${API}/api/email/send-ad`, {
-        guestEmail,
-        guestName,
-        persona,
-        variantLabel: variantLabels[active],
-        svgString,
-        qrDataUrl,
-        formUrl,
-        offer,
-        roomRec,
-      });
-
-      console.log("Email response:", res.data);
-      setEmailSent(true);
-
-    } catch (err) {
-      console.error("Email send error:", err);
-      setEmailError(err.response?.data?.error || err.message || "Failed to send email. Please try again.");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function handleSendEmail() {
-    if (!selected) { setSendStatus("error"); setSendMsg("Please select an ad variant first."); return; }
-    if (!guestEmail) { setSendStatus("error"); setSendMsg("Guest email not available."); return; }
-
-    const svgString = getSelectedSVG();
-    const formUrl   = "https://hospitality-app-39zz.onrender.com/preferences?" +
-      "name="  + encodeURIComponent(guestName)  + "&" +
-      "email=" + encodeURIComponent(guestEmail);
-
-    setSending(true); setSendStatus(null); setSendMsg("");
-
-    try {
-      await axios.post(`${API}/api/email/send-ad`, {
-        guestName,
-        guestEmail,
-        persona,
-        variantLabel:  labels[selected].title,
-        svgString,
-        formUrl,
-        offer:         analysis?.personalizedOffer || "",
-        roomRec:       analysis?.roomRecommendation || "",
-      }, { timeout: 30000 });
-      setSendStatus("success");
-      setSendMsg("Email sent successfully to " + guestEmail);
-    } catch (err) {
-      setSendStatus("error");
-      setSendMsg(err.response?.data?.error || "Failed to send email. Please try again.");
-    } finally { setSending(false); }
-  }
-  
-
   const persona  = result?.analysis?.persona || "";
   const meta     = result?.metadata || result?.analysis?.metadata || null;
   const dq       = result?.analysis?.dataQuality;
   const analysis = result?.analysis || null;
   const hotels   = result?.hotelRecommendations || [];
+  const stays    = result?.stayHistory || [];
 
   return (
     <div style={{ fontFamily:"'DM Sans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
@@ -638,7 +506,7 @@ export default function GuestLookup() {
             </div>
           )}
         </Card>
-        
+
         {error && (
           <div style={{ padding:"11px 14px", background:C.bg, border:`1px solid ${C.borderDark}`, borderRadius:8, color:C.text, fontSize:13, marginBottom:18, display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ color:C.textMid, display:"flex" }}>{Icon.Alert()}</span> {error}
@@ -647,6 +515,9 @@ export default function GuestLookup() {
 
         {result && (
           <div style={{ animation:"fadeIn 0.3s ease" }}>
+
+            {/* Stay History — only shows when guest has previous stays */}
+            <StayHistoryBanner stays={stays} />
 
             {/* Persona Banner */}
             <Card style={{ marginBottom:18, borderLeft:`3px solid ${C.text}`, paddingLeft:23 }}>
