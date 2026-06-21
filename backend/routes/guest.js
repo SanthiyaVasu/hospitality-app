@@ -26,7 +26,7 @@ async function enrichAdsWithImages(ads, metadata) {
     "Service":         `hotel concierge business professional`,
     "Room Package":    `hotel room suite ${city}`,
   };
-
+  
   // Cache images by ad type so same type reuses same image
   const imageCache = {};
 
@@ -82,6 +82,12 @@ router.post("/lookup", async (req, res) => {
       allText.length > 0 ? allText : [name, emailLocal],
       metadata
     );
+    // Check if this guest has stayed before
+const stayHistoryResult = await pool.query(
+  "SELECT * FROM guest_stay_history WHERE LOWER(email) = LOWER($1) ORDER BY check_in_date DESC",
+  [email]
+);
+const stayHistory = stayHistoryResult.rows;
 
     // Step 3: Enrich ad recommendations with Unsplash images
     const enrichedAds = await enrichAdsWithImages(
@@ -160,15 +166,16 @@ router.post("/lookup", async (req, res) => {
 
     // ── Response ─────────────────────────────────────────────
     res.json({
-      success:            true,
-      guestId,
-      guest:              { name, email, emailLocal, emailDomain },
-      profiles:           found,
-      scrapedPlatforms:   Object.keys(scrapedData),
-      metadata,
-      analysis,
-      hotelRecommendations,
-    });
+  success:            true,
+  guestId,
+  guest:              { name, email, emailLocal, emailDomain },
+  profiles:           found,
+  scrapedPlatforms:   Object.keys(scrapedData),
+  metadata,
+  analysis,
+  hotelRecommendations,
+  stayHistory,   // ← ADD THIS LINE
+});
 
   } catch (err) {
     console.error("Lookup error:", err);
