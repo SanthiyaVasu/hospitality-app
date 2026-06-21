@@ -250,5 +250,13 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
+// TEMPORARY DEBUG ROUTE — remove after checking
+router.get("/debug/stay-history", async (req, res) => {
+  try {
+    const all = await pool.query("SELECT * FROM guest_stay_history ORDER BY id DESC LIMIT 20");
+    res.json({ count: all.rows.length, rows: all.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;
