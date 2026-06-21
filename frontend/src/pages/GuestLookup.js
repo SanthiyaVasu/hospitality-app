@@ -381,6 +381,53 @@ function QRCodeSection({ guest }) {
     </Card>
   );
 }
+function StayHistoryBanner({ stays }) {
+  if (!stays || stays.length === 0) return null;
+  const totalSpent = stays.reduce((sum, s) => sum + parseFloat(s.amount_spent || 0), 0);
+  const totalPoints = stays.reduce((sum, s) => sum + (s.loyalty_points || 0), 0);
+
+  return (
+    <Card style={{ marginBottom:18, borderLeft:`3px solid ${C.text}`, paddingLeft:23 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+        <span style={{ color:C.text, display:"flex" }}>{Icon.Check()}</span>
+        <span style={{ fontSize:14, fontWeight:700, color:C.text }}>Returning Guest — {stays.length} Previous Stay{stays.length>1?"s":""}</span>
+        <span style={{ marginLeft:"auto", fontSize:11, color:C.textMid, background:C.tag, padding:"3px 10px", borderRadius:5, border:`1px solid ${C.tagBorder}` }}>
+          {totalPoints} Loyalty Points
+        </span>
+      </div>
+
+      <div style={{ display:"flex", gap:20, marginBottom:16, fontSize:12, color:C.textMid }}>
+        <span><strong style={{ color:C.text }}>Total Spent:</strong> ₹{totalSpent.toLocaleString("en-IN")}</span>
+        <span><strong style={{ color:C.text }}>Total Nights:</strong> {stays.reduce((s,x)=>s+x.nights_stayed,0)}</span>
+      </div>
+
+      {stays.map((s, i) => (
+        <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:10, padding:"10px 0", borderTop:i>0?`1px solid ${C.divider}`:"none" }}>
+          <div>
+            <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Check-In</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{new Date(s.check_in_date).toLocaleDateString("en-IN", {day:"numeric",month:"short",year:"numeric"})}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Nights</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.nights_stayed}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Room Type</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.room_type}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Persona</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>{s.persona}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontWeight:700, color:C.textMute, textTransform:"uppercase", letterSpacing:"0.06em" }}>Amount</div>
+            <div style={{ fontSize:12, color:C.text, fontWeight:600 }}>₹{parseFloat(s.amount_spent).toLocaleString("en-IN")}</div>
+          </div>
+        </div>
+      ))}
+    </Card>
+  );
+}
 
 export default function GuestLookup() {
   const [form,    setForm]    = useState({ name:"", email:"" });
