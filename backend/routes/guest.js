@@ -82,12 +82,18 @@ router.post("/lookup", async (req, res) => {
       allText.length > 0 ? allText : [name, emailLocal],
       metadata
     );
-    // Check if this guest has stayed before
-const stayHistoryResult = await pool.query(
-  "SELECT * FROM guest_stay_history WHERE LOWER(email) = LOWER($1) ORDER BY check_in_date DESC",
-  [email]
-);
-const stayHistory = stayHistoryResult.rows;
+    // Check if this guest has stayed beforconsole.log("Checking stay history for:", email);
+let stayHistory = [];
+try {
+  const stayHistoryResult = await pool.query(
+    "SELECT * FROM guest_stay_history WHERE LOWER(email) = LOWER($1) ORDER BY check_in_date DESC",
+    [email]
+  );
+  stayHistory = stayHistoryResult.rows;
+  console.log("Stay history found:", stayHistory.length, "records");
+} catch (histErr) {
+  console.error("Stay history query error:", histErr.message);
+}
 
     // Step 3: Enrich ad recommendations with Unsplash images
     const enrichedAds = await enrichAdsWithImages(
