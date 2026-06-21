@@ -40,7 +40,22 @@ app.use("/api/batch", batchRoutes);
 app.use("/api/preference", preferenceRoutes);
 app.use("/api/db", dbRoutes);
 app.use("/api/email", emailRoutes);
-
+app.get("/api/debug-db", async (req, res) => {
+  const pool = require("./db");
+  try {
+    const dbInfo = await pool.query("SELECT current_database() as db_name, inet_server_addr() as server_ip");
+    const stayCount = await pool.query("SELECT COUNT(*) as count FROM guest_stay_history");
+    const stayEmails = await pool.query("SELECT email FROM guest_stay_history");
+    res.json({
+      connectedTo: dbInfo.rows[0],
+      totalStayRecords: stayCount.rows[0].count,
+      emails: stayEmails.rows.map(r => r.email),
+      usingDatabaseUrl: !!process.env.DATABASE_URL,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ======================
 // HEALTH CHECK
 // ======================
