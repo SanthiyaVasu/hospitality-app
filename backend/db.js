@@ -22,6 +22,7 @@ pool.on("error", (err) => {
 // Ensure all required tables exist
 async function ensureTables() {
   const client = await pool.connect();
+
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS guests (
@@ -94,7 +95,27 @@ async function ensureTables() {
         submitted_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS guest_stay_history (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        guest_name VARCHAR(255),
+        check_in_date DATE,
+        check_out_date DATE,
+        nights_stayed INT,
+        room_type VARCHAR(100),
+        persona VARCHAR(100),
+        amount_spent NUMERIC(10,2),
+        loyalty_points INT DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    console.log("✅ guest_stay_history table verified/created");
     console.log("✅ All tables verified/created");
+
   } catch (err) {
     console.error("Table creation error:", err.message);
   } finally {
