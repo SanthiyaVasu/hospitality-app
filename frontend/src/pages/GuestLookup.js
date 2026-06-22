@@ -105,15 +105,10 @@ function downloadSVG(svgEl, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ── Ad Posters with Email Send ────────────────────────────────
-// This component owns ALL the state and logic for selecting a poster
-// and emailing it — guestName/guestEmail/persona/meta/analysis are
-// passed in as props from GuestLookup, so there is no need (and no way)
-// for GuestLookup itself to reference "selected", "active", etc.
 function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecommendations }) {
   const [selected,    setSelected]    = useState(null);
   const [sending,     setSending]     = useState(false);
-  const [sendStatus,  setSendStatus]  = useState(null); // "success" | "error" | null
+  const [sendStatus,  setSendStatus]  = useState(null);
   const [sendMsg,     setSendMsg]     = useState("");
   const refs = { 1:React.createRef(), 2:React.createRef(), 3:React.createRef() };
 
@@ -125,7 +120,6 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
     3: { title:"Exclusive Deal",       desc:"Special offer crafted for this guest" },
   };
 
-  // ── Get SVG string of selected variant ───────────────────
   function getSelectedSVG() {
     if (!selected) return null;
     const svgEl = refs[selected].current?.querySelector("svg");
@@ -133,7 +127,6 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
     return new XMLSerializer().serializeToString(svgEl);
   }
 
-  // ── Send email with ad + QR ───────────────────────────────
   async function handleSendEmail() {
     if (!selected) { setSendStatus("error"); setSendMsg("Please select an ad variant first."); return; }
     if (!guestEmail) { setSendStatus("error"); setSendMsg("Guest email not available."); return; }
@@ -155,7 +148,7 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
         formUrl,
         offer:         analysis?.personalizedOffer || "",
         roomRec:       analysis?.roomRecommendation || "",
-      }, { timeout: 30000 }); // 30 seconds timeout
+      }, { timeout: 30000 });
       setSendStatus("success");
       setSendMsg("Email sent successfully to " + guestEmail);
     } catch (err) {
@@ -178,7 +171,6 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
         Personalised hotel advertisement posters generated from this guest's profile. Select one and send directly to guest's email.
       </p>
 
-      {/* 3 Ad Poster Cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
         {[1,2,3].map(v => (
           <div key={v}
@@ -207,7 +199,6 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
         ))}
       </div>
 
-      {/* Send to Guest Panel */}
       <div style={{ marginTop:16, padding:"16px 18px", background:C.bg, borderRadius:8, border:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
           <div>
@@ -230,7 +221,6 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
           </button>
         </div>
 
-        {/* Status message */}
         {sendStatus && (
           <div style={{ marginTop:12, padding:"9px 12px", borderRadius:6, fontSize:12, fontWeight:500,
             background: sendStatus === "success" ? "#F0FDF4" : "#FEF2F2",
@@ -244,6 +234,108 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
             {sendMsg}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── JSON Export Modal ──────────────────────────────────────────
+function JsonViewModal({ result, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  const exportData = {
+    guest: result.guest,
+    metadata: result.metadata,
+    analysis: {
+      persona: result.analysis.persona,
+      personaKey: result.analysis.personaKey,
+      scores: result.analysis.scores,
+      sentimentScore: result.analysis.sentimentScore,
+      roomRecommendation: result.analysis.roomRecommendation,
+      personalizedOffer: result.analysis.personalizedOffer,
+      staffNote: result.analysis.staffNote,
+      dataQuality: result.analysis.dataQuality,
+      snippetsCount: result.analysis.snippetsCount,
+      keywords: result.analysis.keywords,
+      adRecommendations: result.analysis.adRecommendations,
+    },
+    socialProfiles: result.profiles,
+    scrapedPlatforms: result.scrapedPlatforms,
+    hotelRecommendations: result.hotelRecommendations,
+    stayHistory: result.stayHistory,
+    guestId: result.guestId,
+    exportedAt: new Date().toISOString(),
+  };
+
+  const jsonString = JSON.stringify(exportData, null, 2);
+
+  function copyJson() {
+    navigator.clipboard.writeText(jsonString);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function downloadJson() {
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `guest_${(result.guest.name || "guest").replace(/\s+/g, "_").toLowerCase()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position:"fixed", inset:0, background:"rgba(28,25,23,0.55)",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        zIndex:1000, padding:24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background:C.surface, borderRadius:12, border:`1px solid ${C.border}`,
+          maxWidth:780, width:"100%", maxHeight:"85vh",
+          display:"flex", flexDirection:"column", overflow:"hidden",
+          boxShadow:"0 20px 60px rgba(0,0,0,0.25)",
+        }}
+      >
+        <div style={{ padding:"18px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:700, color:C.text }}>Guest Data — JSON Export</div>
+            <div style={{ fontSize:12, color:C.textMute, marginTop:2 }}>{result.guest.name} · {result.guest.email}</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ width:30, height:30, borderRadius:6, border:`1px solid ${C.border}`, background:C.bg, color:C.textMid, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ flex:1, overflow:"auto", padding:"18px 24px", background:"#1C1917" }}>
+          <pre style={{ margin:0, fontSize:12, lineHeight:1.6, color:"#E2E0DA", fontFamily:"'Courier New', monospace", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+            {jsonString}
+          </pre>
+        </div>
+
+        <div style={{ padding:"14px 24px", borderTop:`1px solid ${C.border}`, display:"flex", gap:10, justifyContent:"flex-end", background:C.bg }}>
+          <button
+            onClick={downloadJson}
+            style={{ padding:"8px 18px", borderRadius:7, border:`1px solid ${C.border}`, background:C.surface, color:C.textMid, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}
+          >
+            ↓ Download .json
+          </button>
+          <button
+            onClick={copyJson}
+            style={{ padding:"8px 18px", borderRadius:7, border:"none", background: copied ? "#15803D" : C.fill, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}
+          >
+            {copied ? "✓ Copied!" : "Copy JSON"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -444,11 +536,12 @@ const STEPS = [
 ];
 
 export default function GuestLookup() {
-  const [form,    setForm]    = useState({ name:"", email:"" });
-  const [loading, setLoading] = useState(false);
-  const [result,  setResult]  = useState(null);
-  const [error,   setError]   = useState("");
-  const [step,    setStep]    = useState("");
+  const [form,     setForm]     = useState({ name:"", email:"" });
+  const [loading,  setLoading]  = useState(false);
+  const [result,   setResult]   = useState(null);
+  const [error,    setError]    = useState("");
+  const [step,     setStep]     = useState("");
+  const [showJson, setShowJson] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -535,6 +628,12 @@ export default function GuestLookup() {
                   <div style={{ fontSize:11, color:C.textMute, display:"flex", alignItems:"center", gap:4 }}>
                     {Icon.Database()} Record #{result.guestId}
                   </div>
+                  <button
+                    onClick={() => setShowJson(true)}
+                    style={{ marginTop:8, padding:"6px 14px", borderRadius:6, border:`1px solid ${C.border}`, background:C.bg, color:C.textMid, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6 }}
+                  >
+                    {Icon.FileText()} View JSON Export
+                  </button>
                 </div>
               </div>
             </Card>
@@ -645,6 +744,10 @@ export default function GuestLookup() {
           </div>
         )}
       </div>
+
+      {showJson && result && (
+        <JsonViewModal result={result} onClose={() => setShowJson(false)} />
+      )}
 
       <style>{`
         @keyframes spin   { to { transform: rotate(360deg); } }
