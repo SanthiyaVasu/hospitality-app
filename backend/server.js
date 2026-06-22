@@ -60,7 +60,22 @@ app.get("/", (req, res) => {
     status: "running",
   });
 });
-
+app.get("/api/debug-dedupe", async (req, res) => {
+  const pool = require("./db");
+  try {
+    const result = await pool.query(`
+      DELETE FROM guest_stay_history
+      WHERE id NOT IN (
+        SELECT MIN(id) FROM guest_stay_history
+        GROUP BY email, check_in_date, check_out_date, room_type
+      )
+    `);
+    const remaining = await pool.query("SELECT COUNT(*) as count FROM guest_stay_history");
+    res.json({ deleted: result.rowCount, remaining: remaining.rows[0].count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ======================
 // START SERVER
 // ======================
