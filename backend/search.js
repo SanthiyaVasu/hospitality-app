@@ -131,12 +131,14 @@ async function pdlSearch(email, name) {
     );
     const results = res.data?.data || [];
     if (!results.length) return null;
-    let person = results.find(p =>
-      (p.emails || []).some(e => {
-        const addr = typeof e === "string" ? e : (e?.address || e?.value || "");
-        return addr.toLowerCase() === email.toLowerCase();
-      })
-    );
+    let person = results.find(p => {
+  const emails = p.emails || [];
+  const emailList = Array.isArray(emails) ? emails : Object.values(emails);
+  return emailList.some(e => {
+    const addr = typeof e === "string" ? e : (e?.address || e?.value || "");
+    return addr.toLowerCase() === email.toLowerCase();
+  });
+});
     let matchType = null;
     if (!person && !isGeneric && domainRoot.length > 2) {
       person = results.find(p =>
