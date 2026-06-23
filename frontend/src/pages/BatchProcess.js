@@ -31,7 +31,6 @@ const PERSONA_TAGLINES = {
 
 function trunc(str, max) { if (!str) return ""; return str.length > max ? str.slice(0, max - 1) + "…" : str; }
 
-// ── SVG Ad Poster (same as GuestLookup) ───────────────────────
 function HotelAdPoster({ guestName, persona, meta, analysis, variant, hotelRecommendations }) {
   const firstName  = (guestName || "Guest").split(" ")[0];
   const personaKey = (persona || "").toLowerCase().replace(" traveler", "").trim();
@@ -93,7 +92,6 @@ function downloadSVG(svgEl, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ── Ad Posters + Send to Guest (same logic as GuestLookup) ────
 function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecommendations }) {
   const [selected,   setSelected]   = useState(null);
   const [sending,    setSending]    = useState(false);
@@ -183,7 +181,6 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
   );
 }
 
-// ── QR Code Section (same as GuestLookup) ─────────────────────
 function QRCodeSection({ guest }) {
   const [copied, setCopied] = useState(false);
   const formUrl = "https://hospitality-app-39zz.onrender.com/preferences?" +
@@ -218,7 +215,6 @@ function MetaRow({ label, value }) {
   );
 }
 
-// ── Single Guest Card — full breakdown, collapsible ────────────
 function GuestResultCard({ result, index }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -260,7 +256,6 @@ function GuestResultCard({ result, index }) {
       {expanded && (
         <div style={{ padding:"0 20px 20px", borderTop:`1px solid ${C.divider}` }}>
 
-          {/* Metadata */}
           {metadata && (
             <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
               <div>
@@ -278,7 +273,6 @@ function GuestResultCard({ result, index }) {
             </div>
           )}
 
-          {/* Room / Offer / Note */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14, marginTop:16 }}>
             {[
               { label:"Room Recommendation", value:analysis.roomRecommendation },
@@ -292,7 +286,6 @@ function GuestResultCard({ result, index }) {
             ))}
           </div>
 
-          {/* Ad Posters + Send */}
           <AdPosters
             persona={persona}
             guestName={guest.name}
@@ -302,13 +295,86 @@ function GuestResultCard({ result, index }) {
             hotelRecommendations={hotelRecommendations}
           />
 
-          {/* QR Code */}
           <QRCodeSection guest={guest} />
 
         </div>
       )}
     </div>
   );
+}
+
+// ── CSV Export ──────────────────────────────────────────────────
+function csvEscape(value) {
+  if (value === null || value === undefined) return "";
+  const str = String(value).replace(/"/g, '""');
+  return `"${str}"`;
+}
+
+function buildCsv(results) {
+  const headers = [
+    "Name","Email","Status","Persona","Full Name","Age","Location","Job Title",
+    "Company","Seniority","Industry","Salary Estimate","Years Experience",
+    "Travel Frequency","Spending Level","Lifestyle Signals","Skills","Education",
+    "Past Companies","Luxury Score","Business Score","Leisure Score","Adventure Score",
+    "Family Score","Food Score","Tech Score","Eco Score","Arts Score","Sports Score",
+    "Sentiment Score","Data Quality","Room Recommendation","Personalized Offer",
+    "Staff Note","Social Profiles Found","Scraped Platforms","Hotel Recommendation 1",
+    "Hotel Recommendation 2","Hotel Recommendation 3","Stay History Count",
+    "Total Past Spent","Total Past Nights","Loyalty Points",
+  ];
+
+  const rows = results.map(r => {
+    if (r.status === "failed") {
+      return [
+        r.guest?.name, r.guest?.email, "Failed", "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "", "", "", "", "", "",
+      ];
+    }
+
+    const m = r.metadata || {};
+    const a = r.analysis || {};
+    const scores = a.scores || {};
+    const stays = r.stayHistory || [];
+    const totalSpent = stays.reduce((s,x) => s + parseFloat(x.amount_spent || 0), 0);
+    const totalNights = stays.reduce((s,x) => s + (x.nights_stayed || 0), 0);
+    const totalPoints = stays.reduce((s,x) => s + (x.loyalty_points || 0), 0);
+    const hotels = r.hotelRecommendations || [];
+
+    return [
+      r.guest?.name, r.guest?.email, "Success", a.persona,
+      m.fullName, m.age || m.ageRange, m.location, m.profession || m.jobTitle,
+      m.company || m.jobCompany, m.seniority, m.industry, m.salary, m.yearsExperience,
+      m.travelFrequency, m.spendingLevel,
+      (m.lifestyle || []).join("; "), (m.skills || []).join("; "), (m.education || []).join("; "),
+      (m.pastCompanies || []).join("; "),
+      scores.luxury, scores.business, scores.leisure, scores.adventure,
+      scores.family, scores.food, scores.tech, scores.eco, scores.arts, scores.sports,
+      a.sentimentScore, a.dataQuality, a.roomRecommendation, a.personalizedOffer,
+      a.staffNote, Object.keys(r.profiles || {}).join("; "),
+      (r.scrapedPlatforms || []).join("; "),
+      hotels[0]?.name, hotels[1]?.name, hotels[2]?.name,
+      stays.length, totalSpent, totalNights, totalPoints,
+    ];
+  });
+
+  const csvLines = [
+    headers.map(csvEscape).join(","),
+    ...rows.map(row => row.map(csvEscape).join(",")),
+  ];
+
+  return csvLines.join("\n");
+}
+
+function downloadCsv(results) {
+  const csv = buildCsv(results);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `batch_guest_report_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function BatchProcess() {
@@ -355,7 +421,7 @@ export default function BatchProcess() {
     <div style={{ fontFamily:"'DM Sans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
 
       <div style={{ padding:"28px 40px 20px", borderBottom:`1px solid ${C.border}`, background:C.surface }}>
-        <h1 style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:"-0.3px", marginBottom:3 }}>Batch Guest Processing — TEST V2</h1>
+        <h1 style={{ fontSize:20, fontWeight:700, color:C.text, letterSpacing:"-0.3px", marginBottom:3 }}>Batch Guest Processing</h1>
         <p style={{ color:C.textMid, fontSize:13 }}>Upload a CSV with guest names and emails. Each guest gets a complete intelligence profile, ad creatives and QR code.</p>
       </div>
 
@@ -419,6 +485,20 @@ export default function BatchProcess() {
                   </div>
                 ))}
               </div>
+
+              {job.status === "completed" && job.results.length > 0 && (
+                <button
+                  onClick={() => downloadCsv(job.results)}
+                  style={{ marginTop:16, width:"100%", padding:"10px 0", borderRadius:7, border:"none", background:C.fill, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Download Full Report as CSV
+                </button>
+              )}
             </div>
 
             {job.results.length > 0 && (
