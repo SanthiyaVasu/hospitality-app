@@ -23,12 +23,12 @@ async function hunterLookup(email) {
       timeout: 8000,
     });
     emailStatus = res.data?.data?.status || null;
-    console.log("✅ Hunter verified:", email, "→", emailStatus);
+    console.log("Hunter verified:", email, "→", emailStatus);
   } catch (err) {
-    console.log("⚠️ Hunter verify error:", err.message);
+    console.log("Hunter verify error:", err.message);
   }
   if (GENERIC_DOMAINS.includes(domain.toLowerCase())) {
-    console.log("⚠️ Hunter: skipping domain search for generic email:", domain);
+    console.log("Hunter: skipping domain search for generic email:", domain);
     if (!emailStatus) return null;
     return { fullName:null, jobTitle:null, company:null, linkedin:null, twitter:null, emailStatus, source:"Hunter.io" };
   }
@@ -46,12 +46,12 @@ async function hunterLookup(email) {
       jobTitle = match.position || null;
       linkedin = match.linkedin || null;
       twitter  = match.twitter  || null;
-      console.log("✅ Hunter domain match:", fullName, "|", jobTitle, "at", company);
+      console.log("Hunter domain match:", fullName, "|", jobTitle, "at", company);
     } else {
-      console.log("⚠️ Hunter: no exact email match for", email);
+      console.log("Hunter: no exact email match for", email);
     }
   } catch (err) {
-    console.log("⚠️ Hunter domain error:", err.message);
+    console.log("Hunter domain error:", err.message);
   }
   if (!emailStatus && !company && !jobTitle) return null;
   return { fullName, jobTitle, company, linkedin, twitter, emailStatus, source: "Hunter.io" };
@@ -60,6 +60,11 @@ async function hunterLookup(email) {
 // ── PEOPLE DATA LABS ─────────────────────────────────────────
 async function pdlLookup(email, name) {
   if (!PDL_API_KEY) return null;
+
+  const emailDomain  = email.split("@")[1]?.toLowerCase() || "";
+  const domainRoot   = emailDomain.split(".")[0]?.toLowerCase() || "";
+  const isGeneric    = GENERIC_DOMAINS.includes(emailDomain);
+
   try {
     const res = await axios.get("https://api.peopledatalabs.com/v5/person/enrich", {
       params: { email, pretty: true },
@@ -67,11 +72,33 @@ async function pdlLookup(email, name) {
       timeout: 8000,
     });
     const d = res.data;
-    if (!d || d.status !== 200) return await pdlSearch(email, name);
-    console.log("✅ PDL enrichment found:", d.data?.full_name, d.data?.job_title);
-    return parsePDLPerson(d.data || d);
+    if (!d || d.status !== 200 || !d.data) return await pdlSearch(email, name);
+
+    const person      = d.data;
+    const companyName = (person.job_company_name    || "").toLowerCase();
+    const companySite = (person.job_company_website || "").toLowerCase();
+
+    // Only trust location/age if the returned person's company matches the email domain
+    const domainMatch = !isGeneric && domainRoot.length > 2 &&
+      (companyName.includes(domainRoot) || companySite.includes(domainRoot));
+
+    console.log("PDL enrich found:", person.full_name, "| company:", companyName, "| domain match:", domainMatch);
+
+    const parsed = parsePDLPerson(person);
+
+    if (!domainMatch) {
+      // Company in PDL record does not match email domain — discard personal fields
+      // to avoid showing data for the wrong person
+      parsed.location  = null;
+      parsed.country   = null;
+      parsed.age       = null;
+      parsed.birthYear = null;
+      console.log("PDL enrich: company mismatch — discarding location/age");
+    }
+
+    return parsed;
   } catch (err) {
-    console.log("⚠️ PDL enrichment error:", err.message);
+    console.log("PDL enrichment error:", err.message);
     return await pdlSearch(email, name);
   }
 }
@@ -133,7 +160,7 @@ async function pdlSearch(email, name) {
     }
     return parsed;
   } catch (err) {
-    console.log("⚠️ PDL search error:", err.message);
+    console.log("PDL search error:", err.message);
     return null;
   }
 }
@@ -280,7 +307,7 @@ function isValidProfileUrl(url, name, email) {
   if (!url) return false;
   const urlLower = url.toLowerCase();
   if (urlLower.includes("linkedin.com/pub/dir")) {
-    console.log("⚠️ Rejected LinkedIn directory page:", url);
+    console.log("Rejected LinkedIn directory page:", url);
     return false;
   }
   const local     = email.split("@")[0].toLowerCase().replace(/[._-]/g, "");
@@ -297,7 +324,7 @@ function isValidProfileUrl(url, name, email) {
   if (cleanUsername.includes(local) || local.includes(cleanUsername)) return true;
   if (nameParts.some(part => cleanUsername.includes(part))) return true;
   if (local.includes(cleanUsername.substring(0, 5))) return true;
-  console.log("⚠️ Rejected profile URL (name mismatch):", url, "| username:", username, "| expected:", local);
+  console.log("Rejected profile URL (name mismatch):", url, "| username:", username, "| expected:", local);
   return false;
 }
 
@@ -379,11 +406,8 @@ function extractSalaryEstimate(textArray) {
   return { salaryRange: salaryRange || null, salarySource };
 }
 
-// ── extractLocation — single definition, uses relevant snippets ──
 function extractLocation(textArray, emailDomainRoot, companyLower) {
   if (!textArray || textArray.length === 0) return { city: null, source: null };
-
-  // Filter snippets relevant to this person
   const relevant = textArray.filter(t => {
     const tl = t.toLowerCase();
     if (emailDomainRoot && emailDomainRoot.length > 3 && tl.includes(emailDomainRoot)) return true;
@@ -392,8 +416,6 @@ function extractLocation(textArray, emailDomainRoot, companyLower) {
   });
   const searchIn = relevant.length > 0 ? relevant : textArray;
   const combined = searchIn.join(" ");
-
-  // Explicit location patterns
   const locPatterns = [
     /(?:based\s+in|located\s+in|living\s+in|location\s*:?\s*)\s*([A-Z][a-zA-Z\s]+?)(?:\s*[|\·•,]|\s*\n|$)/i,
     /([A-Z][a-zA-Z]+(?:,\s*[A-Z][a-zA-Z]+)?)\s*(?:India|Karnataka|Tamil Nadu|Maharashtra|Telangana|Kerala|Gujarat)/i,
@@ -405,8 +427,6 @@ function extractLocation(textArray, emailDomainRoot, companyLower) {
       if (city.length > 2) return { city, source: "explicit mention" };
     }
   }
-
-  // Indian cities first
   const indianCities = [
     "Bengaluru","Bangalore","Mumbai","Delhi","New Delhi","Hyderabad","Chennai",
     "Kolkata","Pune","Ahmedabad","Jaipur","Coimbatore","Surat","Lucknow",
@@ -417,8 +437,6 @@ function extractLocation(textArray, emailDomainRoot, companyLower) {
   for (const city of indianCities) {
     if (combined.includes(city)) return { city, source: "city name detected" };
   }
-
-  // International cities
   const intlCities = [
     "London","Singapore","Dubai","Toronto","Sydney","Berlin","Tokyo",
     "New York","San Francisco","Seattle","Austin","Boston","Chicago",
@@ -427,7 +445,6 @@ function extractLocation(textArray, emailDomainRoot, companyLower) {
   for (const city of intlCities) {
     if (combined.includes(city)) return { city, source: "city name detected" };
   }
-
   return { city: null, source: null };
 }
 
@@ -484,10 +501,10 @@ function extractProfession(textArray) {
 
 // ── MAIN SEARCH FUNCTION ─────────────────────────────────────
 async function searchGuest(email, name) {
-  const local          = email.split("@")[0];
-  const emailDomain    = email.split("@")[1]?.toLowerCase() || "";
-  const emailDomainRoot= emailDomain.split(".")[0]?.toLowerCase() || "";
-  const start          = Date.now();
+  const local           = email.split("@")[0];
+  const emailDomain     = email.split("@")[1]?.toLowerCase() || "";
+  const emailDomainRoot = emailDomain.split(".")[0]?.toLowerCase() || "";
+  const start           = Date.now();
 
   // Generic email — skip web search
   if (GENERIC_DOMAINS.includes(emailDomain)) {
@@ -600,7 +617,6 @@ async function searchGuest(email, name) {
   const allText      = [...allSnippets, ...Object.values(scrapedData)];
   const companyLower = (apiMetadata?.company || "").toLowerCase();
 
-  // Filter to relevant snippets only
   const relevantText = allText.filter(s => {
     const sl = s.toLowerCase();
     if (emailDomainRoot.length > 3 && sl.includes(emailDomainRoot)) return true;
@@ -613,7 +629,6 @@ async function searchGuest(email, name) {
   const textForExtraction = relevantText.length > 0 ? relevantText : allText;
   const ageData       = extractAge(textForExtraction);
   const salaryData    = extractSalaryEstimate(textForExtraction);
-  // Pass emailDomainRoot + companyLower so location only uses relevant snippets
   const locationData  = extractLocation(
     relevantText.length > 0 ? relevantText : [],
     emailDomainRoot,
