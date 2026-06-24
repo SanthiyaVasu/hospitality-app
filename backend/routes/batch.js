@@ -20,13 +20,24 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   const jobId       = crypto.randomBytes(8).toString("hex");
   const csvContent  = req.file.buffer.toString("utf8");
 
-  parse(csvContent, { columns: true, trim: true, skip_empty_lines: true }, async (err, records) => {
+  // Strip BOM if present
+const cleanCsv = csvContent.replace(/^\uFEFF/, "");
+
+parse(cleanCsv, { columns: true, trim: true, skip_empty_lines: true, relax_column_count: true }, async (err, records) => {
     if (err) return res.status(400).json({ error: "Invalid CSV format" });
 
-    const guests = records.map((r) => ({
-      name:  r.name  || r.Name  || r.NAME  || "",
-      email: r.email || r.Email || r.EMAIL || "",
-    })).filter((g) => g.name && g.email);
+    // Normalize column names — strip spaces, BOM, case
+const normalize = (obj) => {
+  const clean = {};
+  for (const key of Object.keys(obj)) {
+    clean[key.trim().toLowerCase().replace(/^\uFEFF/, "")] = obj[key];
+  }
+  return clean;
+};
+
+const guests = records.map((r) => {
+  const row = normalize(r);
+  return { name: row.name || "", email: row.email || "" };}).filter((g) => g.name && g.email);
 
     if (guests.length === 0) return res.status(400).json({ error: "No valid name/email rows found in CSV" });
 
