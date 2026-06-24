@@ -271,7 +271,9 @@ async function googleSearch(query) {
         timeout: 6000,
       });
       return (res.data.items || []).map(r => ({ url: r.link, title: r.title, snippet: r.snippet || "" }));
-    } catch {}
+    } catch (err) {
+      console.log("Google CSE error for query [" + query + "]:", err.response?.status, err.response?.data?.error?.message || err.message);
+    }
   }
   if (SERPAPI_KEY) {
     try {
@@ -280,7 +282,9 @@ async function googleSearch(query) {
         timeout: 8000,
       });
       return (res.data.organic_results || []).map(r => ({ url: r.link, title: r.title, snippet: r.snippet || "" }));
-    } catch {}
+    } catch (err) {
+      console.log("SerpAPI error for query [" + query + "]:", err.response?.status, err.response?.data?.error || err.message);
+    }
   }
   try {
     const res = await axios.get(
@@ -293,9 +297,11 @@ async function googleSearch(query) {
       if (r.FirstURL) results.push({ url: r.FirstURL, title: r.Text?.substring(0, 60), snippet: r.Text || "" });
     }
     return results;
-  } catch { return []; }
+  } catch (err) {
+    console.log("DuckDuckGo error for query [" + query + "]:", err.message);
+    return [];
+  }
 }
-
 function detectPlatform(url) {
   for (const [platform, patterns] of Object.entries(PLATFORM_PATTERNS)) {
     for (const pattern of patterns) {
