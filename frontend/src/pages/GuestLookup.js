@@ -110,7 +110,11 @@ function AdPosters({ persona, guestName, guestEmail, meta, analysis, hotelRecomm
   const [sending,     setSending]     = useState(false);
   const [sendStatus,  setSendStatus]  = useState(null);
   const [sendMsg,     setSendMsg]     = useState("");
-  const refs = { 1:React.createRef(), 2:React.createRef(), 3:React.createRef() };
+  const refs = {
+  1: React.useRef(null),
+  2: React.useRef(null),
+  3: React.useRef(null),
+};
 
   if (!persona) return null;
 
