@@ -3,9 +3,7 @@ const router     = express.Router();
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -13,7 +11,9 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
-  family: 4,
+  socketTimeout: 30000,
+  greetingTimeout: 30000,
+  connectionTimeout: 30000,
 });
 // POST /api/email/send-ad
 // Body: { guestEmail, guestName, persona, variant, variantLabel,
