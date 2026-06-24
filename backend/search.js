@@ -61,9 +61,9 @@ async function hunterLookup(email) {
 async function pdlLookup(email, name) {
   if (!PDL_API_KEY) return null;
 
-  const emailDomain  = email.split("@")[1]?.toLowerCase() || "";
-  const domainRoot   = emailDomain.split(".")[0]?.toLowerCase() || "";
-  const isGeneric    = GENERIC_DOMAINS.includes(emailDomain);
+  const emailDomain = email.split("@")[1]?.toLowerCase() || "";
+  const domainRoot  = emailDomain.split(".")[0]?.toLowerCase() || "";
+  const isGeneric   = GENERIC_DOMAINS.includes(emailDomain);
 
   try {
     const res = await axios.get("https://api.peopledatalabs.com/v5/person/enrich", {
@@ -78,7 +78,6 @@ async function pdlLookup(email, name) {
     const companyName = (person.job_company_name    || "").toLowerCase();
     const companySite = (person.job_company_website || "").toLowerCase();
 
-    // Only trust location/age if the returned person's company matches the email domain
     const domainMatch = !isGeneric && domainRoot.length > 2 &&
       (companyName.includes(domainRoot) || companySite.includes(domainRoot));
 
@@ -87,8 +86,6 @@ async function pdlLookup(email, name) {
     const parsed = parsePDLPerson(person);
 
     if (!domainMatch) {
-      // Company in PDL record does not match email domain — discard personal fields
-      // to avoid showing data for the wrong person
       parsed.location  = null;
       parsed.country   = null;
       parsed.age       = null;
@@ -131,14 +128,17 @@ async function pdlSearch(email, name) {
     );
     const results = res.data?.data || [];
     if (!results.length) return null;
+
+    // Safe email matching — handles array or object format
     let person = results.find(p => {
-  const emails = p.emails || [];
-  const emailList = Array.isArray(emails) ? emails : Object.values(emails);
-  return emailList.some(e => {
-    const addr = typeof e === "string" ? e : (e?.address || e?.value || "");
-    return addr.toLowerCase() === email.toLowerCase();
-  });
-});
+      const emails    = p.emails || [];
+      const emailList = Array.isArray(emails) ? emails : Object.values(emails);
+      return emailList.some(e => {
+        const addr = typeof e === "string" ? e : (e?.address || e?.value || "");
+        return addr.toLowerCase() === email.toLowerCase();
+      });
+    });
+
     let matchType = null;
     if (!person && !isGeneric && domainRoot.length > 2) {
       person = results.find(p =>
@@ -272,7 +272,7 @@ async function googleSearch(query) {
       });
       return (res.data.items || []).map(r => ({ url: r.link, title: r.title, snippet: r.snippet || "" }));
     } catch (err) {
-      console.log("Google CSE error for query [" + query + "]:", err.response?.status, err.response?.data?.error?.message || err.message);
+      console.log("Google CSE error:", err.response?.status, err.response?.data?.error?.message || err.message);
     }
   }
   if (SERPAPI_KEY) {
@@ -283,7 +283,7 @@ async function googleSearch(query) {
       });
       return (res.data.organic_results || []).map(r => ({ url: r.link, title: r.title, snippet: r.snippet || "" }));
     } catch (err) {
-      console.log("SerpAPI error for query [" + query + "]:", err.response?.status, err.response?.data?.error || err.message);
+      console.log("SerpAPI error:", err.response?.status, err.response?.data?.error || err.message);
     }
   }
   try {
@@ -297,11 +297,9 @@ async function googleSearch(query) {
       if (r.FirstURL) results.push({ url: r.FirstURL, title: r.Text?.substring(0, 60), snippet: r.Text || "" });
     }
     return results;
-  } catch (err) {
-    console.log("DuckDuckGo error for query [" + query + "]:", err.message);
-    return [];
-  }
+  } catch { return []; }
 }
+
 function detectPlatform(url) {
   for (const [platform, patterns] of Object.entries(PLATFORM_PATTERNS)) {
     for (const pattern of patterns) {
@@ -311,28 +309,73 @@ function detectPlatform(url) {
   return null;
 }
 
+// ── isValidProfileUrl — fixed: LinkedIn uses permissive matching ──
 function isValidProfileUrl(url, name, email) {
   if (!url) return false;
   const urlLower = url.toLowerCase();
-  if (urlLower.includes("linkedin.com/pub/dir")) {
-    console.log("Rejected LinkedIn directory page:", url);
-    return false;
-  }
-  const local     = email.split("@")[0].toLowerCase().replace(/[._-]/g, "");
-  const nameParts = name.toLowerCase().split(" ").filter(p => p.length > 2);
+
+  // Always reject LinkedIn directory pages
+  if (urlLower.includes("linkedin.com/pub/dir")) return false;
+
+  const local      = email.split("@")[0].toLowerCase().replace(/[._-]/g, "");
+  const nameParts  = name.toLowerCase().split(" ").filter(p => p.length > 2);
+  const firstName  = name.toLowerCase().split(" ")[0] || "";
+  const lastName   = name.toLowerCase().split(" ").slice(-1)[0] || "";
+
+  // Extract username from URL
   let username = "";
-  if (urlLower.includes("linkedin.com/in/")) username = urlLower.split("linkedin.com/in/")[1]?.split("/")[0] || "";
-  else if (urlLower.includes("github.com/"))  username = urlLower.split("github.com/")[1]?.split("/")[0] || "";
-  else if (urlLower.includes("twitter.com/")) username = urlLower.split("twitter.com/")[1]?.split("/")[0] || "";
-  else if (urlLower.includes("x.com/"))       username = urlLower.split("x.com/")[1]?.split("/")[0] || "";
-  else if (urlLower.includes("medium.com/@")) username = urlLower.split("medium.com/@")[1]?.split("/")[0] || "";
-  else return true;
+  let platform = "";
+  if (urlLower.includes("linkedin.com/in/")) {
+    username = urlLower.split("linkedin.com/in/")[1]?.split("/")[0] || "";
+    platform = "linkedin";
+  } else if (urlLower.includes("github.com/")) {
+    username = urlLower.split("github.com/")[1]?.split("/")[0] || "";
+    platform = "github";
+  } else if (urlLower.includes("twitter.com/")) {
+    username = urlLower.split("twitter.com/")[1]?.split("/")[0] || "";
+    platform = "twitter";
+  } else if (urlLower.includes("x.com/")) {
+    username = urlLower.split("x.com/")[1]?.split("/")[0] || "";
+    platform = "twitter";
+  } else if (urlLower.includes("medium.com/@")) {
+    username = urlLower.split("medium.com/@")[1]?.split("/")[0] || "";
+    platform = "medium";
+  } else {
+    // tripadvisor, reddit, youtube — accept as-is
+    return true;
+  }
+
   if (!username || username.length < 2) return false;
   const cleanUsername = username.replace(/[._-]/g, "");
+
+  // Check 1: exact email local match
   if (cleanUsername.includes(local) || local.includes(cleanUsername)) return true;
+
+  // Check 2: any name part in username
   if (nameParts.some(part => cleanUsername.includes(part))) return true;
-  if (local.includes(cleanUsername.substring(0, 5))) return true;
-  console.log("Rejected profile URL (name mismatch):", url, "| username:", username, "| expected:", local);
+
+  // Check 3: first 4 chars of email local in username
+  if (local.length >= 4 && cleanUsername.includes(local.substring(0, 4))) return true;
+
+  // Check 4: username starts with first name (handles mohanm15 → mohan)
+  if (firstName.length >= 4 && cleanUsername.startsWith(firstName.substring(0, 4))) return true;
+
+  // Check 5: username starts with last name
+  if (lastName.length >= 4 && cleanUsername.startsWith(lastName.substring(0, 4))) return true;
+
+  // Check 6: LinkedIn — be more permissive since LinkedIn usernames
+  // are often nickname-based (mohanm15 for Mohan Raj).
+  // Accept if the username is at least 5 chars and not an obviously wrong person
+  // (i.e. username doesn't contain a completely different name)
+  if (platform === "linkedin" && cleanUsername.length >= 5) {
+    const clearlyWrong = ["company","careers","jobs","recruit","hr","info","admin","support","team"];
+    if (!clearlyWrong.some(w => cleanUsername.includes(w))) {
+      console.log("LinkedIn accepted (permissive):", url, "| username:", username);
+      return true;
+    }
+  }
+
+  console.log("Rejected profile URL:", url, "| username:", username, "| expected:", local);
   return false;
 }
 
@@ -517,7 +560,6 @@ async function searchGuest(email, name) {
   // Generic email — skip web search
   if (GENERIC_DOMAINS.includes(emailDomain)) {
     console.log("Generic email — skipping web search:", emailDomain);
-    console.log("Calling Hunter.io + PDL APIs...");
     const [pdlResult, hunterResult] = await Promise.allSettled([
       pdlLookup(email, name),
       hunterLookup(email),
@@ -527,7 +569,6 @@ async function searchGuest(email, name) {
     const apiMeta    = buildMetadataFromAPIs(pdlData, hunterData);
     console.log("PDL:", pdlData ? "Found" : "Not found");
     console.log("Hunter:", hunterData ? "Found" : "Not found");
-    console.log("Total time:", Date.now() - start, "ms");
     return {
       found: {}, scrapedData: {}, snippets: [],
       metadata: apiMeta
@@ -593,7 +634,7 @@ async function searchGuest(email, name) {
   if (apiMetadata?.githubFromAPI   && !found.github)   found.github   = apiMetadata.githubFromAPI;
   console.log("Final profiles:", Object.keys(found).join(", ") || "none");
 
-  // STEP 3 — Scrape
+  // STEP 3 — Scrape non-blocked profiles
   const BLOCKED     = ["linkedin", "instagram", "facebook", "twitter"];
   const scrapedData = {};
   const scrapePromises = Object.entries(found)
@@ -621,14 +662,14 @@ async function searchGuest(email, name) {
   }
   await Promise.allSettled(scrapePromises);
 
-  // STEP 4 — Build metadata
+  // STEP 4 — Build metadata from search results
   const allText      = [...allSnippets, ...Object.values(scrapedData)];
   const companyLower = (apiMetadata?.company || "").toLowerCase();
 
   const relevantText = allText.filter(s => {
     const sl = s.toLowerCase();
     if (emailDomainRoot.length > 3 && sl.includes(emailDomainRoot)) return true;
-    if (companyLower && companyLower.length > 2 && sl.includes(companyLower))  return true;
+    if (companyLower && companyLower.length > 2 && sl.includes(companyLower)) return true;
     const nameWords = (name || "").toLowerCase().split(" ").filter(p => p.length > 2);
     if (nameWords.length >= 2 && nameWords.every(p => sl.includes(p))) return true;
     return false;
@@ -649,20 +690,20 @@ async function searchGuest(email, name) {
   if (apiMetadata) {
     metadata = {
       ...apiMetadata,
-      age:             apiMetadata.age       || ageData.age,
-      ageRange:        apiMetadata.ageRange  || ageData.ageRange,
-      ageSource:       apiMetadata.ageSource || (ageData.ageSource ? ageData.ageSource + " (estimated)" : null),
-      location:        apiMetadata.location  || locationData.city  || null,
-      locationSource:  apiMetadata.locationSource || (locationData.source ? locationData.source + " (estimated)" : null),
-      salary:          apiMetadata.salary    || salaryData.salaryRange || null,
-      salarySource:    apiMetadata.salarySource  || (salaryData.salarySource ? salaryData.salarySource + " (estimated)" : null),
-      profession:      apiMetadata.profession    || profData.role     || null,
-      seniority:       apiMetadata.seniority     || profData.seniority || null,
+      age:             apiMetadata.age            || ageData.age,
+      ageRange:        apiMetadata.ageRange        || ageData.ageRange,
+      ageSource:       apiMetadata.ageSource       || (ageData.ageSource ? ageData.ageSource + " (estimated)" : null),
+      location:        apiMetadata.location        || locationData.city  || null,
+      locationSource:  apiMetadata.locationSource  || (locationData.source ? locationData.source + " (estimated)" : null),
+      salary:          apiMetadata.salary          || salaryData.salaryRange || null,
+      salarySource:    apiMetadata.salarySource    || (salaryData.salarySource ? salaryData.salarySource + " (estimated)" : null),
+      profession:      apiMetadata.profession      || profData.role      || null,
+      seniority:       apiMetadata.seniority       || profData.seniority || null,
       lifestyle:       lifestyleData.lifestyleSignals,
       travelFrequency: lifestyleData.travelFrequency,
       spendingLevel:   lifestyleData.spendingLevel,
     };
-    // Fix salary from profession
+    // Fix salary from profession title if still missing or wrong
     if (metadata.profession) {
       const profLower = metadata.profession.toLowerCase();
       let mapped = null;
