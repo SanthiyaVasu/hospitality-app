@@ -50,7 +50,15 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
+app.get("/api/debug-keys", (req, res) => {
+  res.json({
+    hasGoogleApiKey: !!process.env.GOOGLE_API_KEY,
+    hasGoogleCseId:  !!process.env.GOOGLE_CSE_ID,
+    hasSerpApiKey:   !!process.env.SERPAPI_KEY,
+    hasHunterKey:    !!process.env.HUNTER_API_KEY,
+    hasPdlKey:       !!process.env.PDL_API_KEY,
+  });
+});
 // ======================
 // ROOT ROUTE
 // ======================
