@@ -93,8 +93,8 @@ router.post("/send-ad", async (req, res) => {
 
   try {
     await resend.emails.send({
-      from:    "Hospitality Intelligence <onboarding@resend.dev>",
-      to:      guestEmail,
+      from: "Hospitality Intelligence <onboarding@resend.dev>",
+      to:   "santhiyadeepa17@gmail.com",
       subject: `Your Personalised Offer — ${variantLabel || "Exclusive Package"}`,
       html,
       attachments: svgString ? [{
