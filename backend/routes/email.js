@@ -3,17 +3,17 @@ const router     = express.Router();
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "74.125.133.109",
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: {
     rejectUnauthorized: false,
+    servername: "smtp.gmail.com",
   },
-  socketTimeout: 30000,
-  greetingTimeout: 30000,
-  connectionTimeout: 30000,
 });
 // POST /api/email/send-ad
 // Body: { guestEmail, guestName, persona, variant, variantLabel,
